@@ -137,7 +137,7 @@ impl State {
                 primitive: PrimitiveState {
                     topology: PrimitiveTopology::TriangleList,
                     strip_index_format: None,
-                    front_face: FrontFace::Ccw,
+                    front_face: FrontFace::Cw,
                     cull_mode: Some(Face::Back),
                     unclipped_depth: true,
                     polygon_mode: PolygonMode::Fill,
@@ -198,7 +198,7 @@ impl State {
                 depth_stencil: Some(DepthStencilState {
                     format: TextureFormat::Depth32Float,
                     depth_write_enabled: Some(true),
-                    depth_compare: Some(CompareFunction::GreaterEqual),
+                    depth_compare: Some(CompareFunction::LessEqual),
                     stencil: Default::default(),
                     bias: Default::default(),
                 }),
@@ -292,7 +292,7 @@ impl State {
             cache: None,
         });
 
-        let objects = vec![read_obj("src/objects/testcube.obj", &device)];
+        let objects = vec![read_obj("src/objects/behold.obj", &device)];
 
         let depth_stencil = device.create_texture(&TextureDescriptor {
             label: Some("Depth Stencil"),
@@ -408,13 +408,13 @@ impl State {
                 render_pass.set_index_buffer(obj.face_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
                 render_pass.draw_indexed(0..(obj.faces.len() as u32), 0,0..1);
             }
-            render_pass.set_pipeline(&self.render_pipelines[1]);
-            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            for obj in self.objects.iter() {
-                render_pass.set_vertex_buffer(0, obj.vertex_buffer.slice(..));
-                render_pass.set_index_buffer(obj.edge_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-                render_pass.draw_indexed(0..(obj.edges.len() as u32), 0, 0..1);
-            }
+            // render_pass.set_pipeline(&self.render_pipelines[1]);
+            // render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            // for obj in self.objects.iter() {
+            //     render_pass.set_vertex_buffer(0, obj.vertex_buffer.slice(..));
+            //     render_pass.set_index_buffer(obj.edge_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            //     render_pass.draw_indexed(0..(obj.edges.len() as u32), 0, 0..1);
+            // }
 
         }
 

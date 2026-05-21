@@ -135,7 +135,7 @@ impl Camera {
         let (sin_pitch, cos_pitch) = self.pitch.0.sin_cos();
         let (sin_yaw, cos_yaw) = self.yaw.0.sin_cos();
 
-        return cgmath::Matrix4::look_to_rh(
+        return cgmath::Matrix4::look_to_lh(
             self.position,
             cgmath::Vector3::new(
                 cos_pitch * cos_yaw,
@@ -161,8 +161,8 @@ impl Camera {
 
     pub fn update_camera(&mut self, code: KeyCode, is_pressed: bool) {
         match (code, is_pressed) {
-            (KeyCode::KeyW, true) => self.position += self.calc_matrix_3() * cgmath::Vector3::unit_z() * 0.1,
-            (KeyCode::KeyS, true) => self.position += self.calc_matrix_3() * -cgmath::Vector3::unit_z() * 0.1,
+            (KeyCode::KeyW, true) => self.position += self.calc_matrix_3() * -cgmath::Vector3::unit_z() * 0.1,
+            (KeyCode::KeyS, true) => self.position += self.calc_matrix_3() * cgmath::Vector3::unit_z() * 0.1,
             (KeyCode::KeyA, true) => self.position += self.calc_matrix_3() * cgmath::Vector3::unit_x() * 0.1,
             (KeyCode::KeyD, true) => self.position += self.calc_matrix_3() * -cgmath::Vector3::unit_x() * 0.1,
             (_, _) => {}

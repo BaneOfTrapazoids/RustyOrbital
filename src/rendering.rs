@@ -99,7 +99,7 @@ pub fn read_obj(path: &str, device: &wgpu::Device) -> Object {
         }
     }
 
-    edges_set.iter().map(|e| {edges.push(e.0); edges.push(e.1)});
+    edges_set.iter().for_each(|e| {edges.push(e.0); edges.push(e.1)});
 
     return Object::new(vertices, faces, edges, device, Some(path));
 }

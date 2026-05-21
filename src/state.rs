@@ -81,7 +81,7 @@ impl State {
             desired_maximum_frame_latency: 2,
         };
 
-        let camera = Camera::new(cgmath::Point3::new(0.0, 0.0, -2.0), cgmath::Deg(0.0), cgmath::Deg(0.0), size.width, size.height);
+        let camera = Camera::new(cgmath::Point3::new(0.0, 0.0, -2.0), cgmath::Deg(90.0), cgmath::Deg(0.0), size.width, size.height);
         let camera_uniform = CameraUniform::new(&camera);
 
         let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
@@ -173,7 +173,7 @@ impl State {
             // Line
             let line_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some("Render Pipeline layout"),
-                bind_group_layouts: &[],
+                bind_group_layouts: &[Some(&camera_bind_group_layout)],
                 immediate_size: 0,
             });
 
@@ -184,11 +184,7 @@ impl State {
                     module: &shader,
                     entry_point: Some("vs_main_line"),
                     compilation_options: PipelineCompilationOptions { constants: &[], zero_initialize_workgroup_memory: false },
-                    buffers: &[VertexBufferLayout {
-                        array_stride: 0,
-                        step_mode: Default::default(),
-                        attributes: &[],
-                    }],
+                    buffers: &[crate::rendering::Vertex::desc()],
                 },
                 primitive: PrimitiveState {
                     topology: PrimitiveTopology::LineList,
@@ -199,7 +195,13 @@ impl State {
                     polygon_mode: PolygonMode::Line,
                     conservative: false,
                 },
-                depth_stencil: None,
+                depth_stencil: Some(DepthStencilState {
+                    format: TextureFormat::Depth32Float,
+                    depth_write_enabled: Some(true),
+                    depth_compare: Some(CompareFunction::GreaterEqual),
+                    stencil: Default::default(),
+                    bias: Default::default(),
+                }),
                 multisample: MultisampleState {
                     count: 1,
                     mask: !0,
@@ -389,7 +391,7 @@ impl State {
                 depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
                     view: &depth,
                     depth_ops: Some(Operations {
-                        load: wgpu::LoadOp::Load,
+                        load: wgpu::LoadOp::Clear(0.0),
                         store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,
@@ -406,6 +408,14 @@ impl State {
                 render_pass.set_index_buffer(obj.face_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
                 render_pass.draw_indexed(0..(obj.faces.len() as u32), 0,0..1);
             }
+            render_pass.set_pipeline(&self.render_pipelines[1]);
+            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            for obj in self.objects.iter() {
+                render_pass.set_vertex_buffer(0, obj.vertex_buffer.slice(..));
+                render_pass.set_index_buffer(obj.edge_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                render_pass.draw_indexed(0..(obj.edges.len() as u32), 0, 0..1);
+            }
+
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

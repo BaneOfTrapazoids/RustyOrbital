@@ -6,6 +6,7 @@ use winit::event::{ElementState, MouseButton};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::KeyCode;
 use winit::window::Window;
+use crate::rendering;
 use crate::rendering::{read_obj, Camera, CameraUniform};
 
 pub struct State {
@@ -137,7 +138,7 @@ impl State {
                 primitive: PrimitiveState {
                     topology: PrimitiveTopology::TriangleList,
                     strip_index_format: None,
-                    front_face: FrontFace::Cw,
+                    front_face: FrontFace::Ccw,
                     cull_mode: Some(Face::Back),
                     unclipped_depth: true,
                     polygon_mode: PolygonMode::Fill,
@@ -408,13 +409,13 @@ impl State {
                 render_pass.set_index_buffer(obj.face_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
                 render_pass.draw_indexed(0..(obj.faces.len() as u32), 0,0..1);
             }
-            // render_pass.set_pipeline(&self.render_pipelines[1]);
-            // render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            // for obj in self.objects.iter() {
-            //     render_pass.set_vertex_buffer(0, obj.vertex_buffer.slice(..));
-            //     render_pass.set_index_buffer(obj.edge_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            //     render_pass.draw_indexed(0..(obj.edges.len() as u32), 0, 0..1);
-            // }
+            render_pass.set_pipeline(&self.render_pipelines[1]);
+            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            for obj in self.objects.iter() {
+                render_pass.set_vertex_buffer(0, obj.vertex_buffer.slice(..));
+                render_pass.set_index_buffer(obj.edge_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                render_pass.draw_indexed(0..(obj.edges.len() as u32), 0, 0..1);
+            }
 
         }
 
@@ -451,6 +452,12 @@ impl State {
             self.camera.yaw -= cgmath::Rad(dx as f32 / self.config.width as f32);
             self.camera.pitch += cgmath::Rad(dy as f32 / self.config.height as f32);
             self.camera_uniform.update_view_proj(&self.camera);
+        }
+
+        if self.camera.pitch < -cgmath::Rad(rendering::SAFE_FRAC_PI_2) {
+            self.camera.pitch = -cgmath::Rad(rendering::SAFE_FRAC_PI_2);
+        } else if self.camera.pitch > cgmath::Rad(rendering::SAFE_FRAC_PI_2) {
+            self.camera.pitch = cgmath::Rad(rendering::SAFE_FRAC_PI_2);
         }
     }
 

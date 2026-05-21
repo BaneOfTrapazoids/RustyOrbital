@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::f32::consts::FRAC_PI_2;
 use std::fs;
 use std::str::FromStr;
 use cgmath::InnerSpace;
@@ -88,14 +89,14 @@ pub fn read_obj(path: &str, device: &wgpu::Device) -> Object {
     // depend on the exact geometry of the object
     let mut edges_set: HashSet<(u16, u16)> = HashSet::with_capacity(faces.len());
     for i in 0..(faces.len() / 3) {
-        if !edges_set.contains(&(faces[i], faces[i+1])) && !edges_set.contains(&(faces[i+1], faces[i])){
-            edges_set.insert((faces[i], faces[i+1]));
+        if !edges_set.contains(&(faces[i*3], faces[i*3+1])) && !edges_set.contains(&(faces[i*3+1], faces[i*3])){
+            edges_set.insert((faces[i*3], faces[i*3+1]));
         }
-        if !edges_set.contains(&(faces[i+1], faces[i+2])) && !edges_set.contains(&(faces[i+2], faces[i+1])){
-            edges_set.insert((faces[i+1], faces[i+2]));
+        if !edges_set.contains(&(faces[i*3+1], faces[i*3+2])) && !edges_set.contains(&(faces[i*3+2], faces[i*3+1])){
+            edges_set.insert((faces[i*3+1], faces[i*3+2]));
         }
-        if !edges_set.contains(&(faces[i], faces[i+2])) && !edges_set.contains(&(faces[i+2], faces[i])){
-            edges_set.insert((faces[i], faces[i+2]));
+        if !edges_set.contains(&(faces[i*3], faces[i*3+2])) && !edges_set.contains(&(faces[i*3+2], faces[i*3])){
+            edges_set.insert((faces[i*3], faces[i*3+2]));
         }
     }
 
@@ -111,6 +112,8 @@ pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::from_co
     cgmath::Vector4::new(0.0, 0.0, 0.5, 0.0),
     cgmath::Vector4::new(0.0, 0.0, 0.5, 1.0),
 );
+
+pub const SAFE_FRAC_PI_2: f32 = FRAC_PI_2 - 0.0001;
 
 pub struct Camera {
     pub position: cgmath::Point3<f32>,
@@ -135,7 +138,7 @@ impl Camera {
         let (sin_pitch, cos_pitch) = self.pitch.0.sin_cos();
         let (sin_yaw, cos_yaw) = self.yaw.0.sin_cos();
 
-        return cgmath::Matrix4::look_to_lh(
+        return cgmath::Matrix4::look_to_rh(
             self.position,
             cgmath::Vector3::new(
                 cos_pitch * cos_yaw,
@@ -149,7 +152,7 @@ impl Camera {
     pub fn calc_matrix_3(&self) -> cgmath::Matrix3<f32> {
         let (sin_pitch, cos_pitch) = self.pitch.0.sin_cos();
         let (sin_yaw, cos_yaw) = self.yaw.0.sin_cos();
-        return cgmath::Matrix3::look_to_lh(
+        return cgmath::Matrix3::look_to_rh(
             cgmath::Vector3::new(
                 cos_pitch * cos_yaw,
                 sin_pitch,
@@ -160,11 +163,15 @@ impl Camera {
     }
 
     pub fn update_camera(&mut self, code: KeyCode, is_pressed: bool) {
+        let (yaw_sin, yaw_cos) = self.yaw.0.sin_cos();
+        let forward = cgmath::Vector3::new(yaw_cos, 0.0, yaw_sin).normalize();
+        let right = cgmath::Vector3::new(-yaw_sin, 0.0, yaw_cos).normalize();
         match (code, is_pressed) {
-            (KeyCode::KeyW, true) => self.position += self.calc_matrix_3() * -cgmath::Vector3::unit_z() * 0.1,
-            (KeyCode::KeyS, true) => self.position += self.calc_matrix_3() * cgmath::Vector3::unit_z() * 0.1,
-            (KeyCode::KeyA, true) => self.position += self.calc_matrix_3() * cgmath::Vector3::unit_x() * 0.1,
-            (KeyCode::KeyD, true) => self.position += self.calc_matrix_3() * -cgmath::Vector3::unit_x() * 0.1,
+            (KeyCode::KeyW, true) => self.position += forward * 0.1,
+            (KeyCode::KeyS, true) => self.position += -forward * 0.1,
+            (KeyCode::KeyA, true) => self.position += -right * 0.1,
+            (KeyCode::KeyD, true) => self.position += right * 0.1,
+            (KeyCode::Space, true) => self.position.y += 0.1,
             (_, _) => {}
         }
 

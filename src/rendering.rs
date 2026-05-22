@@ -10,8 +10,8 @@ use winit::keyboard::KeyCode;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
-    position: [f32; 3],
-    color: [f32; 3],
+    pub(crate) position: [f32; 3],
+    pub(crate) color: [f32; 3],
 }
 
 impl Vertex {
@@ -30,7 +30,7 @@ impl Vertex {
 }
 
 pub struct Object {
-    vertices: Vec<Vertex>,
+    pub vertices: Vec<Vertex>,
     pub vertex_buffer: wgpu::Buffer,
     pub faces: Vec<u16>,
     pub face_index_buffer: wgpu::Buffer,
@@ -60,6 +60,10 @@ impl Object {
         });
 
         return Object {vertices, vertex_buffer, faces, face_index_buffer, edges, edge_index_buffer};
+    }
+
+    pub fn points(vertices: Vec<Vertex>, device: &wgpu::Device, label: Option<&str>) -> Self {
+        return Self::new(vertices, vec![0], vec![0], &device, label);
     }
 }
 

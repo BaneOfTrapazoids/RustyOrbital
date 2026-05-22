@@ -1,13 +1,14 @@
 use std::sync::Arc;
-use wgpu::{include_wgsl, Backends, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState, BufferBindingType, Color, ColorTargetState, ColorWrites, CompareFunction, ComputePipeline, ComputePipelineDescriptor, DepthStencilState, Extent3d, Face, Features, FragmentState, FrontFace, MultisampleState, Operations, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PowerPreference, PrimitiveState, PrimitiveTopology, RenderPassColorAttachment, RenderPassDepthStencilAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions, ShaderModule, ShaderModuleDescriptor, ShaderSource, SurfaceConfiguration, TextureFormat, TextureUsages, Trace, VertexBufferLayout, VertexState};
+use wgpu::{include_wgsl, Backends, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState, BufferAsyncError, BufferBindingType, BufferView, Color, ColorTargetState, ColorWrites, CompareFunction, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, DepthStencilState, Extent3d, Face, Features, FragmentState, FrontFace, MultisampleState, Operations, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PowerPreference, PrimitiveState, PrimitiveTopology, RenderPassColorAttachment, RenderPassDepthStencilAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions, ShaderModule, ShaderModuleDescriptor, ShaderSource, SurfaceConfiguration, TextureFormat, TextureUsages, Trace, VertexBufferLayout, VertexState};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::wgt::{CommandEncoderDescriptor, DeviceDescriptor, TextureDescriptor, TextureViewDescriptor};
 use winit::event::{ElementState, MouseButton};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::KeyCode;
 use winit::window::Window;
+use crate::orbital_compute::OrbitalCompute;
 use crate::rendering;
-use crate::rendering::{read_obj, Camera, CameraUniform};
+use crate::rendering::{read_obj, Camera, CameraUniform, Object, Vertex};
 
 pub struct State {
     surface: wgpu::Surface<'static>,
@@ -16,7 +17,7 @@ pub struct State {
     config: wgpu::SurfaceConfiguration,
     is_surface_configured: bool,
     render_pipelines: Vec<wgpu::RenderPipeline>,
-    compute_pipeline: wgpu::ComputePipeline,
+    compute: OrbitalCompute,
     objects: Vec<crate::rendering::Object>,
     depth_stencil: wgpu::Texture,
     camera: Camera,
@@ -51,11 +52,17 @@ impl State {
 
         let (device, queue) = adapter.request_device(&DeviceDescriptor {
             label: Some("GPU device 413"),
-            required_features: Features::POLYGON_MODE_LINE | Features::POLYGON_MODE_POINT | Features::DEPTH_CLIP_CONTROL,
+            required_features: Features::POLYGON_MODE_LINE | Features::POLYGON_MODE_POINT | Features::DEPTH_CLIP_CONTROL | Features::MAPPABLE_PRIMARY_BUFFERS,
             required_limits: if cfg!(target_arch = "wasm32") {
                 wgpu::Limits::downlevel_webgl2_defaults()
             } else {
-                wgpu::Limits::default()
+                wgpu::Limits {
+                    max_compute_invocations_per_workgroup: 1024,
+                    max_compute_workgroup_size_x: 256,
+                    max_compute_workgroup_size_y: 256,
+                    max_compute_workgroup_size_z: 64,
+                    ..Default::default()
+                }
             },
             experimental_features: Default::default(),
             memory_hints: Default::default(),
@@ -63,7 +70,9 @@ impl State {
         }).await?;
 
         println!("Adapter Features: {}\n", adapter.features());
-        println!("Device Features: {}", device.features());
+        println!("Device Features: {}\n", device.features());
+        println!("Adapter Limits: {:?}\n", adapter.limits());
+        println!("Device Limits: {:?}", device.limits());
 
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps.formats.iter()
@@ -121,13 +130,13 @@ impl State {
             let shader = device.create_shader_module(ShaderModuleDescriptor { label: Some("Triangle Shader Module"), source: ShaderSource::Wgsl(include_str!("shader/shader.wgsl").into()) });
 
             let triangle_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-                label: Some("Render Pipeline layout"),
+                label: Some("Triangle Render Pipeline layout"),
                 bind_group_layouts: &[Some(&camera_bind_group_layout)],
                 immediate_size: 0,
             });
 
             let triangle_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
-                label: Some("Render Pipeline 413"),
+                label: Some("Triangle Render Pipeline 413"),
                 layout: Some(&triangle_pipeline_layout),
                 vertex: VertexState {
                     module: &shader,
@@ -173,7 +182,7 @@ impl State {
 
             // Line
             let line_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-                label: Some("Render Pipeline layout"),
+                label: Some("Line Render Pipeline layout"),
                 bind_group_layouts: &[Some(&camera_bind_group_layout)],
                 immediate_size: 0,
             });
@@ -199,7 +208,7 @@ impl State {
                 depth_stencil: Some(DepthStencilState {
                     format: TextureFormat::Depth32Float,
                     depth_write_enabled: Some(true),
-                    depth_compare: Some(CompareFunction::LessEqual),
+                    depth_compare: Some(CompareFunction::GreaterEqual),
                     stencil: Default::default(),
                     bias: Default::default(),
                 }),
@@ -226,22 +235,18 @@ impl State {
             // Point
             let point_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some("Point Render Pipeline layout"),
-                bind_group_layouts: &[],
+                bind_group_layouts: &[Some(&camera_bind_group_layout)],
                 immediate_size: 0,
             });
 
             let point_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
-                label: Some("Render Pipeline 413"),
+                label: Some("Point Render Pipeline 413"),
                 layout: Some(&point_pipeline_layout),
                 vertex: VertexState {
                     module: &shader,
                     entry_point: Some("vs_main_point"),
                     compilation_options: PipelineCompilationOptions { constants: &[], zero_initialize_workgroup_memory: false },
-                    buffers: &[VertexBufferLayout {
-                        array_stride: 0,
-                        step_mode: Default::default(),
-                        attributes: &[],
-                    }],
+                    buffers: &[crate::rendering::Vertex::desc()],
                 },
                 primitive: PrimitiveState {
                     topology: PrimitiveTopology::PointList,
@@ -252,7 +257,13 @@ impl State {
                     polygon_mode: PolygonMode::Point,
                     conservative: false,
                 },
-                depth_stencil: None,
+                depth_stencil: Some(DepthStencilState {
+                    format: TextureFormat::Depth32Float,
+                    depth_write_enabled: Some(true),
+                    depth_compare: Some(CompareFunction::GreaterEqual),
+                    stencil: Default::default(),
+                    bias: Default::default(),
+                }),
                 multisample: MultisampleState {
                     count: 1,
                     mask: !0,
@@ -275,25 +286,9 @@ impl State {
             pieplines = vec![triangle_pipeline, line_pipeline, point_pipeline];
         }
 
-        // Compute
-        let compute_shader = device.create_shader_module(ShaderModuleDescriptor { label: Some("Compute Shader Module"), source: ShaderSource::Wgsl(include_str!("shader/compute_shader.wgsl").into()) });
-
-        let compute_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: Some("Compute Pipeline layout"),
-            bind_group_layouts: &[],
-            immediate_size: 0,
-        });
-
-        let compute_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
-            label: Some("Compute Pipeline"),
-            layout: None,
-            module: &compute_shader,
-            entry_point: Some("compute_main"),
-            compilation_options: Default::default(),
-            cache: None,
-        });
-
         let objects = vec![read_obj("src/objects/behold.obj", &device)];
+
+        //let objects = vec![];
 
         let depth_stencil = device.create_texture(&TextureDescriptor {
             label: Some("Depth Stencil"),
@@ -306,6 +301,8 @@ impl State {
             view_formats: &[TextureFormat::Depth32Float],
         });
 
+        let compute = OrbitalCompute::new(&device);
+
         Ok(Self {
             surface,
             device,
@@ -313,7 +310,7 @@ impl State {
             config,
             is_surface_configured: false,
             render_pipelines: pieplines,
-            compute_pipeline,
+            compute,
             objects,
             depth_stencil,
             camera,
@@ -331,6 +328,40 @@ impl State {
             self.surface.configure(&self.device, &self.config);
             self.is_surface_configured = true;
         }
+    }
+
+    pub fn request_compute(&mut self) {
+        println!("STARING COMPUTE");
+        let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor { label: Some("Compute Encoder") });
+        //self.queue.write_buffer(&self.compute.buffer_in, 0, bytemuck::cast_slice(&*self.compute.data_in));
+
+        {
+            let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor { label: Some("Compute Pass Descriptor"), timestamp_writes: None });
+            compute_pass.set_pipeline(&self.compute.pipeline);
+            compute_pass.set_bind_group(0, Some(&self.compute.bind_group), &[]);
+            compute_pass.dispatch_workgroups(10, 10, 10);
+            compute_pass.on_submitted_work_done(|| println!("WORK DONE! :D"));
+        }
+
+        encoder.copy_buffer_to_buffer(&self.compute.buffer_out, 0, &self.compute.true_out, 0, self.compute.buffer_out.size());
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+
+        let (sender, mut receiver) = futures_channel::oneshot::channel();
+
+        self.compute.true_out.map_async(wgpu::MapMode::Read, .., move |result| sender.send(result).unwrap());
+        self.device.poll(wgpu::PollType::wait_indefinitely());
+
+        receiver.try_recv().unwrap().unwrap().unwrap();
+
+        let result: Vec<u32> = self.compute.true_out.get_mapped_range(..).chunks_exact(4).map(|e| u32::from_le_bytes(<[u8; 4]>::try_from(e).unwrap())).collect();
+        self.compute.true_out.unmap();
+        self.objects = vec![Object::points(result.iter().enumerate().filter(|e| *e.1 == 1).map(|e| {
+            let z = e.0 / 10000;
+            let y = (e.0 - 10000 * z) / 100;
+            let x = e.0 - 10000* z - 100 * y;
+            Vertex {position: [x as f32 / 100.0, y as f32 / 100.0, z as f32 / 100.0], color: [0.0, 0.0, 1.0]}
+        }).collect(), &self.device, Some("Computed"))];
     }
 
     pub fn render(&mut self) -> anyhow::Result<()> {
@@ -385,7 +416,7 @@ impl State {
                     depth_slice: None,
                     resolve_target: None,
                     ops: Operations {
-                        load: wgpu::LoadOp::Clear(Color::GREEN),
+                        load: wgpu::LoadOp::Clear(Color::BLACK),
                         store: wgpu::StoreOp::Store
                     },
                 })],
@@ -402,21 +433,27 @@ impl State {
                 multiview_mask: None,
             });
 
-            render_pass.set_pipeline(&self.render_pipelines[0]);
-            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            for obj in self.objects.iter() {
-                render_pass.set_vertex_buffer(0, obj.vertex_buffer.slice(..));
-                render_pass.set_index_buffer(obj.face_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-                render_pass.draw_indexed(0..(obj.faces.len() as u32), 0,0..1);
-            }
-            render_pass.set_pipeline(&self.render_pipelines[1]);
-            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            for obj in self.objects.iter() {
-                render_pass.set_vertex_buffer(0, obj.vertex_buffer.slice(..));
-                render_pass.set_index_buffer(obj.edge_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-                render_pass.draw_indexed(0..(obj.edges.len() as u32), 0, 0..1);
-            }
+            // render_pass.set_pipeline(&self.render_pipelines[0]);
+            // render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            // for obj in self.objects.iter() {
+            //     render_pass.set_vertex_buffer(0, obj.vertex_buffer.slice(..));
+            //     render_pass.set_index_buffer(obj.face_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            //     render_pass.draw_indexed(0..obj.faces.len() as u32, 0, 0..1);
+            // }
+            // render_pass.set_pipeline(&self.render_pipelines[1]);
+            // render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            // for obj in self.objects.iter() {
+            //     render_pass.set_vertex_buffer(0, obj.vertex_buffer.slice(..));
+            //     render_pass.set_index_buffer(obj.edge_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            //     render_pass.draw_indexed(0..(obj.edges.len() as u32), 0, 0..1);
+            // }
 
+            render_pass.set_pipeline(&self.render_pipelines[2]);
+            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            for obj in self.objects.iter() {
+                render_pass.set_vertex_buffer(0, obj.vertex_buffer.slice(..));
+                render_pass.draw(0..obj.vertices.len() as u32, 0..1);
+            }
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -432,11 +469,12 @@ impl State {
         match (code, is_pressed) {
             (KeyCode::Escape, true) => event_loop.exit(),
             (KeyCode::Numpad5, true) => self.debug_log(),
+            (KeyCode::Numpad6, true) => self.request_compute(),
             _ => {}
         }
     }
 
-    fn debug_log(&self) {
+    fn debug_log(&mut self) {
         println!("CAMERA: pitch: {}, yaw: {}, position: {:?}, view_projection: {:?}", self.camera.pitch.0, self.camera.yaw.0, self.camera.position, self.camera_uniform.view_proj);
     }
 

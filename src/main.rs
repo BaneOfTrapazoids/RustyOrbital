@@ -1,6 +1,7 @@
 pub mod state;
 pub mod app;
 pub mod rendering;
+pub mod orbital_compute;
 
 use std::sync::Arc;
 

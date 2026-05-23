@@ -1,14 +1,13 @@
+use crate::orbital_compute::OrbitalCompute;
+use crate::rendering;
+use crate::rendering::{read_obj, Camera, CameraUniform, Object, Vertex};
 use std::sync::Arc;
-use wgpu::{include_wgsl, Backends, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState, BufferAsyncError, BufferBindingType, BufferView, Color, ColorTargetState, ColorWrites, CompareFunction, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, DepthStencilState, Extent3d, Face, Features, FragmentState, FrontFace, MultisampleState, Operations, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PowerPreference, PrimitiveState, PrimitiveTopology, RenderPassColorAttachment, RenderPassDepthStencilAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions, ShaderModule, ShaderModuleDescriptor, ShaderSource, SurfaceConfiguration, TextureFormat, TextureUsages, Trace, VertexBufferLayout, VertexState};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::wgt::{CommandEncoderDescriptor, DeviceDescriptor, TextureDescriptor, TextureViewDescriptor};
 use winit::event::{ElementState, MouseButton};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::KeyCode;
 use winit::window::Window;
-use crate::orbital_compute::OrbitalCompute;
-use crate::rendering;
-use crate::rendering::{read_obj, Camera, CameraUniform, Object, Vertex};
 
 pub struct State {
     surface: wgpu::Surface<'static>,
@@ -44,15 +43,15 @@ impl State {
 
         let surface = instance.create_surface(window.clone()).unwrap();
 
-        let adapter = instance.request_adapter(&RequestAdapterOptions {
-            power_preference: PowerPreference::HighPerformance,
+        let adapter = instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
             force_fallback_adapter: false,
             compatible_surface: Some(&surface),
         }).await?;
 
         let (device, queue) = adapter.request_device(&DeviceDescriptor {
             label: Some("GPU device 413"),
-            required_features: Features::POLYGON_MODE_LINE | Features::POLYGON_MODE_POINT | Features::DEPTH_CLIP_CONTROL | Features::MAPPABLE_PRIMARY_BUFFERS,
+            required_features: wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::POLYGON_MODE_POINT | wgpu::Features::DEPTH_CLIP_CONTROL | wgpu::Features::MAPPABLE_PRIMARY_BUFFERS,
             required_limits: if cfg!(target_arch = "wasm32") {
                 wgpu::Limits::downlevel_webgl2_defaults()
             } else {
@@ -66,7 +65,7 @@ impl State {
             },
             experimental_features: Default::default(),
             memory_hints: Default::default(),
-            trace: Trace::Off,
+            trace: wgpu::Trace::Off,
         }).await?;
 
         println!("Adapter Features: {}\n", adapter.features());
@@ -100,13 +99,13 @@ impl State {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        let camera_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+        let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Camera Bind Group Layout"),
-            entries: &[BindGroupLayoutEntry {
+            entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStages::VERTEX,
-                ty: BindingType::Buffer {
-                    ty: BufferBindingType::Uniform,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
                     min_binding_size: None,
                 },
@@ -114,10 +113,10 @@ impl State {
             }]
         });
 
-        let camera_bind_group = device.create_bind_group(&BindGroupDescriptor {
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Camera Bind Group"),
             layout: &camera_bind_group_layout,
-            entries: &[BindGroupEntry {
+            entries: &[wgpu::BindGroupEntry {
                 binding: 0, resource: camera_buffer.as_entire_binding()
             }],
         });
@@ -127,52 +126,52 @@ impl State {
         // Pipelines @_@
         {
             // Triangle
-            let shader = device.create_shader_module(ShaderModuleDescriptor { label: Some("Triangle Shader Module"), source: ShaderSource::Wgsl(include_str!("shader/shader.wgsl").into()) });
+            let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("Triangle Shader Module"), source: wgpu::ShaderSource::Wgsl(include_str!("shader/shader.wgsl").into()) });
 
-            let triangle_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            let triangle_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Triangle Render Pipeline layout"),
                 bind_group_layouts: &[Some(&camera_bind_group_layout)],
                 immediate_size: 0,
             });
 
-            let triangle_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+            let triangle_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("Triangle Render Pipeline 413"),
                 layout: Some(&triangle_pipeline_layout),
-                vertex: VertexState {
+                vertex: wgpu::VertexState {
                     module: &shader,
                     entry_point: Some("vs_main_triangle"),
-                    compilation_options: PipelineCompilationOptions { constants: &[], zero_initialize_workgroup_memory: false },
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
                     buffers: &[crate::rendering::Vertex::desc()],
                 },
-                primitive: PrimitiveState {
-                    topology: PrimitiveTopology::TriangleList,
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
                     strip_index_format: None,
-                    front_face: FrontFace::Ccw,
-                    cull_mode: Some(Face::Back),
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: Some(wgpu::Face::Back),
                     unclipped_depth: true,
-                    polygon_mode: PolygonMode::Fill,
+                    polygon_mode: wgpu::PolygonMode::Fill,
                     conservative: false,
                 },
-                depth_stencil: Some(DepthStencilState {
-                    format: TextureFormat::Depth32Float,
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
                     depth_write_enabled: Some(true),
-                    depth_compare: Some(CompareFunction::GreaterEqual),
+                    depth_compare: Some(wgpu::CompareFunction::GreaterEqual),
                     stencil: Default::default(),
                     bias: Default::default(),
                 }),
-                multisample: MultisampleState {
+                multisample: wgpu::MultisampleState {
                     count: 1,
                     mask: !0,
                     alpha_to_coverage_enabled: false,
                 },
-                fragment: Some(FragmentState {
+                fragment: Some(wgpu::FragmentState {
                     module: &shader,
                     entry_point: Some("fs_main_triangle"),
                     compilation_options: Default::default(),
-                    targets: &[Some(ColorTargetState {
+                    targets: &[Some(wgpu::ColorTargetState {
                         format: config.format,
-                        blend: Some(BlendState::REPLACE),
-                        write_mask: ColorWrites::ALL,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
                     })],
                 }),
                 multiview_mask: None,
@@ -181,50 +180,50 @@ impl State {
 
 
             // Line
-            let line_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            let line_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Line Render Pipeline layout"),
                 bind_group_layouts: &[Some(&camera_bind_group_layout)],
                 immediate_size: 0,
             });
 
-            let line_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+            let line_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("Line Render Pipeline 413"),
                 layout: Some(&line_pipeline_layout),
-                vertex: VertexState {
+                vertex: wgpu::VertexState {
                     module: &shader,
                     entry_point: Some("vs_main_line"),
-                    compilation_options: PipelineCompilationOptions { constants: &[], zero_initialize_workgroup_memory: false },
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
                     buffers: &[crate::rendering::Vertex::desc()],
                 },
-                primitive: PrimitiveState {
-                    topology: PrimitiveTopology::LineList,
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::LineList,
                     strip_index_format: None,
-                    front_face: FrontFace::Ccw,
-                    cull_mode: Some(Face::Back),
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: Some(wgpu::Face::Back),
                     unclipped_depth: false,
-                    polygon_mode: PolygonMode::Line,
+                    polygon_mode: wgpu::PolygonMode::Line,
                     conservative: false,
                 },
-                depth_stencil: Some(DepthStencilState {
-                    format: TextureFormat::Depth32Float,
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
                     depth_write_enabled: Some(true),
-                    depth_compare: Some(CompareFunction::GreaterEqual),
+                    depth_compare: Some(wgpu::CompareFunction::GreaterEqual),
                     stencil: Default::default(),
                     bias: Default::default(),
                 }),
-                multisample: MultisampleState {
+                multisample: wgpu::MultisampleState {
                     count: 1,
                     mask: !0,
                     alpha_to_coverage_enabled: false,
                 },
-                fragment: Some(FragmentState {
+                fragment: Some(wgpu::FragmentState {
                     module: &shader,
                     entry_point: Some("fs_main_line"),
                     compilation_options: Default::default(),
-                    targets: &[Some(ColorTargetState {
+                    targets: &[Some(wgpu::ColorTargetState {
                         format: config.format,
-                        blend: Some(BlendState::REPLACE),
-                        write_mask: ColorWrites::ALL,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
                     })],
                 }),
                 multiview_mask: None,
@@ -233,50 +232,50 @@ impl State {
 
 
             // Point
-            let point_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            let point_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Point Render Pipeline layout"),
                 bind_group_layouts: &[Some(&camera_bind_group_layout)],
                 immediate_size: 0,
             });
 
-            let point_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+            let point_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("Point Render Pipeline 413"),
                 layout: Some(&point_pipeline_layout),
-                vertex: VertexState {
+                vertex: wgpu::VertexState {
                     module: &shader,
                     entry_point: Some("vs_main_point"),
-                    compilation_options: PipelineCompilationOptions { constants: &[], zero_initialize_workgroup_memory: false },
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
                     buffers: &[crate::rendering::Vertex::desc()],
                 },
-                primitive: PrimitiveState {
-                    topology: PrimitiveTopology::PointList,
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::PointList,
                     strip_index_format: None,
-                    front_face: FrontFace::Ccw,
-                    cull_mode: Some(Face::Back),
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: Some(wgpu::Face::Back),
                     unclipped_depth: false,
-                    polygon_mode: PolygonMode::Point,
+                    polygon_mode: wgpu::PolygonMode::Point,
                     conservative: false,
                 },
-                depth_stencil: Some(DepthStencilState {
-                    format: TextureFormat::Depth32Float,
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
                     depth_write_enabled: Some(true),
-                    depth_compare: Some(CompareFunction::GreaterEqual),
+                    depth_compare: Some(wgpu::CompareFunction::GreaterEqual),
                     stencil: Default::default(),
                     bias: Default::default(),
                 }),
-                multisample: MultisampleState {
+                multisample: wgpu::MultisampleState {
                     count: 1,
                     mask: !0,
                     alpha_to_coverage_enabled: false,
                 },
-                fragment: Some(FragmentState {
+                fragment: Some(wgpu::FragmentState {
                     module: &shader,
                     entry_point: Some("fs_main_point"),
                     compilation_options: Default::default(),
-                    targets: &[Some(ColorTargetState {
+                    targets: &[Some(wgpu::ColorTargetState {
                         format: config.format,
-                        blend: Some(BlendState::REPLACE),
-                        write_mask: ColorWrites::ALL,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
                     })],
                 }),
                 multiview_mask: None,
@@ -292,13 +291,13 @@ impl State {
 
         let depth_stencil = device.create_texture(&TextureDescriptor {
             label: Some("Depth Stencil"),
-            size: Extent3d {width: size.width, height: size.height, depth_or_array_layers: 1},
+            size: wgpu::Extent3d {width: size.width, height: size.height, depth_or_array_layers: 1},
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: TextureFormat::Depth32Float,
-            usage: TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[TextureFormat::Depth32Float],
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[wgpu::TextureFormat::Depth32Float],
         });
 
         let compute = OrbitalCompute::new(&device);
@@ -328,13 +327,13 @@ impl State {
             self.surface.configure(&self.device, &self.config);
             self.depth_stencil = self.device.create_texture(&TextureDescriptor {
                 label: Some("Depth Stencil"),
-                size: Extent3d {width: self.config.width, height: self.config.height, depth_or_array_layers: 1},
+                size: wgpu::Extent3d {width: self.config.width, height: self.config.height, depth_or_array_layers: 1},
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
-                format: TextureFormat::Depth32Float,
-                usage: TextureUsages::RENDER_ATTACHMENT,
-                view_formats: &[TextureFormat::Depth32Float],
+                format: wgpu::TextureFormat::Depth32Float,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[wgpu::TextureFormat::Depth32Float],
             });
             self.is_surface_configured = true;
         }
@@ -346,7 +345,7 @@ impl State {
         //self.queue.write_buffer(&self.compute.buffer_in, 0, bytemuck::cast_slice(&*self.compute.data_in));
 
         {
-            let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor { label: Some("Compute Pass Descriptor"), timestamp_writes: None });
+            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass Descriptor"), timestamp_writes: None });
             compute_pass.set_pipeline(&self.compute.pipeline);
             compute_pass.set_bind_group(0, Some(&self.compute.bind_group), &[]);
             compute_pass.dispatch_workgroups(10, 10, 10);
@@ -412,7 +411,7 @@ impl State {
             label: Some("Depth Stencil View"),
             format: Some(wgpu::TextureFormat::Depth32Float),
             dimension: Some(wgpu::TextureViewDimension::D2),
-            usage: Some(TextureUsages::RENDER_ATTACHMENT),
+            usage: Some(wgpu::TextureUsages::RENDER_ATTACHMENT),
             aspect: Default::default(),
             base_mip_level: 0,
             mip_level_count: None,
@@ -423,20 +422,20 @@ impl State {
         let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor { label: Some("Render Encoder 413") });
 
         {
-            let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass 413"),
-                color_attachments: &[Some(RenderPassColorAttachment {
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     depth_slice: None,
                     resolve_target: None,
-                    ops: Operations {
-                        load: wgpu::LoadOp::Clear(Color::BLACK),
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: wgpu::StoreOp::Store
                     },
                 })],
-                depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &depth,
-                    depth_ops: Some(Operations {
+                    depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(0.0),
                         store: wgpu::StoreOp::Store,
                     }),

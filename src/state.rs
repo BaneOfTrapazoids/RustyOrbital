@@ -1,6 +1,6 @@
 use crate::orbital_compute::OrbitalCompute;
 use crate::rendering;
-use crate::rendering::{read_obj, Camera, CameraUniform, Object, Vertex};
+use crate::rendering::{read_obj, Camera, CameraUniform, Object, Projection, Vertex};
 use std::sync::Arc;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::wgt::{CommandEncoderDescriptor, DeviceDescriptor, TextureDescriptor, TextureViewDescriptor};
@@ -327,7 +327,7 @@ impl State {
             self.surface.configure(&self.device, &self.config);
             self.depth_stencil = self.device.create_texture(&TextureDescriptor {
                 label: Some("Depth Stencil"),
-                size: wgpu::Extent3d {width: self.config.width, height: self.config.height, depth_or_array_layers: 1},
+                size: wgpu::Extent3d {width, height, depth_or_array_layers: 1},
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
@@ -335,6 +335,8 @@ impl State {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                 view_formats: &[wgpu::TextureFormat::Depth32Float],
             });
+
+            self.camera.projection = Projection::new(width, height, cgmath::Deg(45.0), 0.1, 100.0);
             self.is_surface_configured = true;
         }
     }
@@ -365,15 +367,36 @@ impl State {
 
         let result: Vec<u32> = self.compute.true_out.get_mapped_range(..).chunks_exact(4).map(|e| u32::from_le_bytes(<[u8; 4]>::try_from(e).unwrap())).collect();
         self.compute.true_out.unmap();
-        let x = vec![Object::points(result.iter().enumerate().filter(|e| *e.1 == 1).map(|e| {
+        let vert: Vec<Vertex> = result.iter().enumerate().filter(|e| *e.1 == 1).map(|e| {
             let z = e.0 / 10000;
             let y = (e.0 - 10000 * z) / 100;
             let x = e.0 - 10000* z - 100 * y;
             let x_c = x as f32 / 100.0 - 0.5;
             let y_c = y as f32 / 100.0 - 0.5;
             let z_c = z as f32 / 100.0 - 0.5;
-            Vertex {position: [x_c, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]}
-        }).collect(), &self.device, Some("Computed"))];
+            [Vertex {position: [x_c, y_c, z_c-0.01], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c, y_c-0.01, z_c-0.01], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c, y_c-0.01, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.01, y_c, z_c-0.01], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.01, y_c-0.01, z_c-0.01], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.01, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.01, y_c-0.01, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]}]
+        }).flatten().collect();
+        let faces: Vec<u32> = (0..(vert.len() as u32) / 8).map(|i| [
+            i*8+5, i*8+3, i*8+1,
+            i*8+3, i*8+8, i*8+4,
+            i*8+7, i*8+6, i*8+8,
+            i*8+2, i*8+8, i*8+6,
+            i*8+1, i*8+4, i*8+2,
+            i*8+5, i*8+2, i*8+6,
+            i*8+5, i*8+7, i*8+3,
+            i*8+3, i*8+7, i*8+8,
+            i*8+7, i*8+5, i*8+6,
+            i*8+2, i*8+4, i*8+8,
+            i*8+1, i*8+3, i*8+4,
+            i*8+5, i*8+1, i*8+2]).flatten().collect();
+        let x = vec![Object::new(vert, faces, vec![0], &self.device, Some("Computed"))];
         self.objects = x;
     }
 
@@ -446,13 +469,13 @@ impl State {
                 multiview_mask: None,
             });
 
-            // render_pass.set_pipeline(&self.render_pipelines[0]);
-            // render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            // for obj in self.objects.iter() {
-            //     render_pass.set_vertex_buffer(0, obj.vertex_buffer.slice(..));
-            //     render_pass.set_index_buffer(obj.face_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            //     render_pass.draw_indexed(0..obj.faces.len() as u32, 0, 0..1);
-            // }
+            render_pass.set_pipeline(&self.render_pipelines[0]);
+            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            for obj in self.objects.iter() {
+                render_pass.set_vertex_buffer(0, obj.vertex_buffer.slice(..));
+                render_pass.set_index_buffer(obj.face_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                render_pass.draw_indexed(0..obj.faces.len() as u32, 0, 0..1);
+            }
             // render_pass.set_pipeline(&self.render_pipelines[1]);
             // render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             // for obj in self.objects.iter() {
@@ -461,12 +484,12 @@ impl State {
             //     render_pass.draw_indexed(0..(obj.edges.len() as u32), 0, 0..1);
             // }
 
-            render_pass.set_pipeline(&self.render_pipelines[2]);
-            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            for obj in self.objects.iter() {
-                render_pass.set_vertex_buffer(0, obj.vertex_buffer.slice(..));
-                render_pass.draw(0..obj.vertices.len() as u32, 0..1);
-            }
+            // render_pass.set_pipeline(&self.render_pipelines[2]);
+            // render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            // for obj in self.objects.iter() {
+            //     render_pass.set_vertex_buffer(0, obj.vertex_buffer.slice(..));
+            //     render_pass.draw(0..obj.vertices.len() as u32, 0..1);
+            // }
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

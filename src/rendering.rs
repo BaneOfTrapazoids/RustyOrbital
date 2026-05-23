@@ -32,15 +32,15 @@ impl Vertex {
 pub struct Object {
     pub vertices: Vec<Vertex>,
     pub vertex_buffer: wgpu::Buffer,
-    pub faces: Vec<u16>,
+    pub faces: Vec<u32>,
     pub face_index_buffer: wgpu::Buffer,
-    pub edges: Vec<u16>,
+    pub edges: Vec<u32>,
     pub edge_index_buffer: wgpu::Buffer,
 
 }
 
 impl Object {
-    pub fn new(vertices: Vec<Vertex>, faces: Vec<u16>, edges: Vec<u16>, device: &wgpu::Device, label: Option<&str>) -> Self {
+    pub fn new(vertices: Vec<Vertex>, faces: Vec<u32>, edges: Vec<u32>, device: &wgpu::Device, label: Option<&str>) -> Self {
         let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label,
             contents: bytemuck::cast_slice(&*vertices),
@@ -80,7 +80,7 @@ pub fn read_obj(path: &str, device: &wgpu::Device) -> Object {
             let vertex: Vec<f32> = line.split_ascii_whitespace().skip(1).map(|e| f32::from_str(e).unwrap()).collect();
             vertices.push(Vertex {position: [vertex[0], vertex[1], vertex[2]], color: [vertex[3], vertex[4], vertex[5]]})
         } else if line.starts_with("f") {
-            let face: Vec<u16> = line.split_ascii_whitespace().skip(1).map(|e| u16::from_str(e).unwrap()).collect();
+            let face: Vec<u32> = line.split_ascii_whitespace().skip(1).map(|e| u32::from_str(e).unwrap()).collect();
             faces.push(face[0]-1);
             faces.push(face[1]-1);
             faces.push(face[2]-1);
@@ -91,7 +91,7 @@ pub fn read_obj(path: &str, device: &wgpu::Device) -> Object {
     // each triangle has 3 edges, but also 3 vertices that make it up
     // so the number of faces is the number of edges (with duplicates), but an exact count would
     // depend on the exact geometry of the object
-    let mut edges_set: HashSet<(u16, u16)> = HashSet::with_capacity(faces.len());
+    let mut edges_set: HashSet<(u32, u32)> = HashSet::with_capacity(faces.len());
     for i in 0..(faces.len() / 3) {
         if !edges_set.contains(&(faces[i*3], faces[i*3+1])) && !edges_set.contains(&(faces[i*3+1], faces[i*3])){
             edges_set.insert((faces[i*3], faces[i*3+1]));

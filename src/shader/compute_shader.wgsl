@@ -22,6 +22,10 @@ fn compute_main(@builtin(global_invocation_id) id: vec3<u32>) {
         return;
     }
 
+    let x = f32(id.x) / 100 - 0.5;
+    let y = f32(id.y) / 100 - 0.5;
+    let z = f32(id.z) / 100 - 0.5;
+
     // a simple copy operation
-    output[id.x+id.y*100+id.z*10000] = u32(f32(id.x * id.x + id.y * id.y + id.z * id.z) / 1000 < 0.1);
+    output[id.x+id.y*100+id.z*10000] = u32(x * x + y * y + z * z < 0.25);
 }

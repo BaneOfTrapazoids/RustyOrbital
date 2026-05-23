@@ -326,6 +326,16 @@ impl State {
             self.config.width = width;
             self.config.height = height;
             self.surface.configure(&self.device, &self.config);
+            self.depth_stencil = self.device.create_texture(&TextureDescriptor {
+                label: Some("Depth Stencil"),
+                size: Extent3d {width: self.config.width, height: self.config.height, depth_or_array_layers: 1},
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: TextureFormat::Depth32Float,
+                usage: TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[TextureFormat::Depth32Float],
+            });
             self.is_surface_configured = true;
         }
     }
@@ -356,12 +366,16 @@ impl State {
 
         let result: Vec<u32> = self.compute.true_out.get_mapped_range(..).chunks_exact(4).map(|e| u32::from_le_bytes(<[u8; 4]>::try_from(e).unwrap())).collect();
         self.compute.true_out.unmap();
-        self.objects = vec![Object::points(result.iter().enumerate().filter(|e| *e.1 == 1).map(|e| {
+        let x = vec![Object::points(result.iter().enumerate().filter(|e| *e.1 == 1).map(|e| {
             let z = e.0 / 10000;
             let y = (e.0 - 10000 * z) / 100;
             let x = e.0 - 10000* z - 100 * y;
-            Vertex {position: [x as f32 / 100.0, y as f32 / 100.0, z as f32 / 100.0], color: [0.0, 0.0, 1.0]}
+            let x_c = x as f32 / 100.0 - 0.5;
+            let y_c = y as f32 / 100.0 - 0.5;
+            let z_c = z as f32 / 100.0 - 0.5;
+            Vertex {position: [x_c, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]}
         }).collect(), &self.device, Some("Computed"))];
+        self.objects = x;
     }
 
     pub fn render(&mut self) -> anyhow::Result<()> {

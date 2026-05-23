@@ -171,11 +171,12 @@ impl Camera {
         let forward = cgmath::Vector3::new(yaw_cos, 0.0, yaw_sin).normalize();
         let right = cgmath::Vector3::new(-yaw_sin, 0.0, yaw_cos).normalize();
         match (code, is_pressed) {
-            (KeyCode::KeyW, true) => self.position += forward * 0.1,
-            (KeyCode::KeyS, true) => self.position += -forward * 0.1,
-            (KeyCode::KeyA, true) => self.position += -right * 0.1,
-            (KeyCode::KeyD, true) => self.position += right * 0.1,
-            (KeyCode::Space, true) => self.position.y += 0.1,
+            (KeyCode::KeyW, true) => self.position += forward * 0.05,
+            (KeyCode::KeyS, true) => self.position += -forward * 0.05,
+            (KeyCode::KeyA, true) => self.position += -right * 0.05,
+            (KeyCode::KeyD, true) => self.position += right * 0.05,
+            (KeyCode::Space, true) => self.position.y += 0.05,
+            (KeyCode::KeyC, true) => self.position.y -= 0.05,
             (_, _) => {}
         }
 

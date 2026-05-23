@@ -155,7 +155,7 @@ impl State {
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
                     depth_write_enabled: Some(true),
-                    depth_compare: Some(wgpu::CompareFunction::GreaterEqual),
+                    depth_compare: Some(wgpu::CompareFunction::LessEqual),
                     stencil: Default::default(),
                     bias: Default::default(),
                 }),
@@ -259,7 +259,7 @@ impl State {
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
                     depth_write_enabled: Some(true),
-                    depth_compare: Some(wgpu::CompareFunction::GreaterEqual),
+                    depth_compare: Some(wgpu::CompareFunction::LessEqual),
                     stencil: Default::default(),
                     bias: Default::default(),
                 }),
@@ -285,7 +285,8 @@ impl State {
             pieplines = vec![triangle_pipeline, line_pipeline, point_pipeline];
         }
 
-        let objects = vec![read_obj("src/objects/behold.obj", &device)];
+        let mut objects = vec![read_obj("src/objects/renderercube.obj", &device)];
+        objects.push(objects[0].scale(0.5, &device, Some("Scaled")).translate(-1.0, -0.5, -1.0, &device, Some("Translated")));
 
         //let objects = vec![];
 
@@ -296,7 +297,7 @@ impl State {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[wgpu::TextureFormat::Depth32Float],
         });
 
@@ -374,14 +375,14 @@ impl State {
             let x_c = x as f32 / 100.0 - 0.5;
             let y_c = y as f32 / 100.0 - 0.5;
             let z_c = z as f32 / 100.0 - 0.5;
-            [Vertex {position: [x_c, y_c, z_c-0.01], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c, y_c-0.01, z_c-0.01], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+            [Vertex {position: [x_c, y_c, z_c-0.001], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c, y_c-0.001, z_c-0.001], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
                 Vertex {position: [x_c, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c, y_c-0.01, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.01, y_c, z_c-0.01], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.01, y_c-0.01, z_c-0.01], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.01, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.01, y_c-0.01, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]}]
+                Vertex {position: [x_c, y_c-0.001, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.001, y_c, z_c-0.001], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.001, y_c-0.001, z_c-0.001], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.001, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.001, y_c-0.001, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]}]
         }).flatten().collect();
         let faces: Vec<u32> = (0..(vert.len() as u32) / 8).map(|i| [
             i*8+5, i*8+3, i*8+1,
@@ -459,7 +460,7 @@ impl State {
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &depth,
                     depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(0.0),
+                        load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,

@@ -65,6 +65,14 @@ impl Object {
     pub fn points(vertices: Vec<Vertex>, device: &wgpu::Device, label: Option<&str>) -> Self {
         return Self::new(vertices, vec![0], vec![0], &device, label);
     }
+
+    pub fn scale(&self, factor: f32, device: &wgpu::Device, label: Option<&str>) -> Self {
+        return Object::new(self.vertices.iter().map(|e| Vertex {position: [e.position[0] * factor, e.position[1] * factor, e.position[2] * factor], color: e.color}).collect(), self.faces.clone(), self.edges.clone(), device, label);
+    }
+
+    pub fn translate(&self, x: f32, y: f32, z: f32, device: &wgpu::Device, label: Option<&str>) -> Self {
+        return Object::new(self.vertices.iter().map(|e| Vertex {position: [e.position[0] + x, e.position[1] + y, e.position[2] + z], color: e.color}).collect(), self.faces.clone(), self.edges.clone(), device, label);
+    }
 }
 
 pub fn read_obj(path: &str, device: &wgpu::Device) -> Object {

@@ -14,6 +14,8 @@ struct Camera {
 };
 @group(0) @binding(0) var<uniform> camera : Camera;
 
+var<immediate> spacing_factor: f32;
+
 @vertex
 fn vs_main_triangle(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;

@@ -1,10 +1,11 @@
+use std::collections::HashMap;
 use crate::orbital_compute::OrbitalCompute;
 use crate::rendering;
 use crate::rendering::{read_obj, Camera, CameraUniform, Object, Projection, Vertex};
 use std::sync::Arc;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::wgt::{CommandEncoderDescriptor, DeviceDescriptor, TextureDescriptor, TextureViewDescriptor};
-use winit::event::{ElementState, MouseButton};
+use winit::event::{ElementState, MouseButton, MouseScrollDelta};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::KeyCode;
 use winit::window::Window;
@@ -23,6 +24,8 @@ pub struct State {
     camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+    voxel_scale_factor: f32,
+    keys: HashMap<winit::keyboard::KeyCode, bool>,
     window: Arc<Window>,
 }
 
@@ -51,7 +54,7 @@ impl State {
 
         let (device, queue) = adapter.request_device(&DeviceDescriptor {
             label: Some("GPU device 413"),
-            required_features: wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::POLYGON_MODE_POINT | wgpu::Features::DEPTH_CLIP_CONTROL | wgpu::Features::MAPPABLE_PRIMARY_BUFFERS,
+            required_features: wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::POLYGON_MODE_POINT | wgpu::Features::DEPTH_CLIP_CONTROL | wgpu::Features::MAPPABLE_PRIMARY_BUFFERS | wgpu::Features::IMMEDIATES,
             required_limits: if cfg!(target_arch = "wasm32") {
                 wgpu::Limits::downlevel_webgl2_defaults()
             } else {
@@ -60,6 +63,7 @@ impl State {
                     max_compute_workgroup_size_x: 256,
                     max_compute_workgroup_size_y: 256,
                     max_compute_workgroup_size_z: 64,
+                    max_immediate_size: 16,
                     ..Default::default()
                 }
             },
@@ -131,7 +135,7 @@ impl State {
             let triangle_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Triangle Render Pipeline layout"),
                 bind_group_layouts: &[Some(&camera_bind_group_layout)],
-                immediate_size: 0,
+                immediate_size: 4,
             });
 
             let triangle_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -317,6 +321,8 @@ impl State {
             camera_uniform,
             camera_buffer,
             camera_bind_group,
+            voxel_scale_factor: 1.0,
+            keys: HashMap::new(),
             window,
         })
     }
@@ -372,31 +378,31 @@ impl State {
             let z = e.0 / 10000;
             let y = (e.0 - 10000 * z) / 100;
             let x = e.0 - 10000* z - 100 * y;
-            let x_c = x as f32 / 100.0 - 0.5;
-            let y_c = y as f32 / 100.0 - 0.5;
-            let z_c = z as f32 / 100.0 - 0.5;
-            [Vertex {position: [x_c, y_c, z_c-0.001], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c, y_c-0.001, z_c-0.001], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+            let x_c = x as f32 / 50.0 - 1.0;
+            let y_c = y as f32 / 50.0 - 1.0;
+            let z_c = z as f32 / 50.0 - 1.0;
+            [Vertex {position: [x_c, y_c, z_c-0.02], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c, y_c-0.02, z_c-0.02], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
                 Vertex {position: [x_c, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c, y_c-0.001, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.001, y_c, z_c-0.001], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.001, y_c-0.001, z_c-0.001], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.001, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.001, y_c-0.001, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]}]
+                Vertex {position: [x_c, y_c-0.02, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.02, y_c, z_c-0.02], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.02, y_c-0.02, z_c-0.02], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.02, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.02, y_c-0.02, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]}]
         }).flatten().collect();
         let faces: Vec<u32> = (0..(vert.len() as u32) / 8).map(|i| [
-            i*8+5, i*8+3, i*8+1,
-            i*8+3, i*8+8, i*8+4,
-            i*8+7, i*8+6, i*8+8,
-            i*8+2, i*8+8, i*8+6,
-            i*8+1, i*8+4, i*8+2,
-            i*8+5, i*8+2, i*8+6,
-            i*8+5, i*8+7, i*8+3,
-            i*8+3, i*8+7, i*8+8,
-            i*8+7, i*8+5, i*8+6,
-            i*8+2, i*8+4, i*8+8,
-            i*8+1, i*8+3, i*8+4,
-            i*8+5, i*8+1, i*8+2]).flatten().collect();
+            i*8+4, i*8+2, i*8,
+            i*8+2, i*8+7, i*8+3,
+            i*8+6, i*8+5, i*8+7,
+            i*8+1, i*8+7, i*8+5,
+            i*8, i*8+3, i*8+1,
+            i*8+4, i*8+1, i*8+5,
+            i*8+4, i*8+6, i*8+2,
+            i*8+2, i*8+6, i*8+7,
+            i*8+6, i*8+4, i*8+5,
+            i*8+1, i*8+3, i*8+7,
+            i*8, i*8+2, i*8+3,
+            i*8+4, i*8, i*8+1]).flatten().collect();
         let x = vec![Object::new(vert, faces, vec![0], &self.device, Some("Computed"))];
         self.objects = x;
     }
@@ -472,6 +478,7 @@ impl State {
 
             render_pass.set_pipeline(&self.render_pipelines[0]);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            render_pass.set_immediates(0, &self.voxel_scale_factor.to_le_bytes());
             for obj in self.objects.iter() {
                 render_pass.set_vertex_buffer(0, obj.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(obj.face_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
@@ -499,10 +506,10 @@ impl State {
         return Ok(());
     }
 
-    // impl State
     pub fn handle_key(&mut self, event_loop: &ActiveEventLoop, code: KeyCode, is_pressed: bool) {
         self.camera.update_camera(code, is_pressed);
         self.camera_uniform.update_view_proj(&self.camera);
+        self.keys.insert(code, is_pressed);
         match (code, is_pressed) {
             (KeyCode::Escape, true) => event_loop.exit(),
             (KeyCode::Numpad5, true) => self.debug_log(),
@@ -519,6 +526,23 @@ impl State {
         match (button, state.is_pressed()) {
             (MouseButton::Left, _) => self.camera.rotating = state.is_pressed(),
             (_, _) => {}
+        }
+    }
+
+    pub fn handle_scroll(&mut self, delta: winit::event::MouseScrollDelta, phase: winit::event::TouchPhase) {
+        match delta {
+            MouseScrollDelta::LineDelta(_, dy) => {
+                match self.keys.get(&KeyCode::ShiftLeft) {
+                    Some(true) => self.voxel_scale_factor += dy / 100.0,
+                    _ => {}
+                }
+            }
+            MouseScrollDelta::PixelDelta(dy) => {
+                match self.keys.get(&KeyCode::ShiftLeft) {
+                    Some(true) => self.voxel_scale_factor += dy.y as f32 / 100.0,
+                    _ => {}
+                }
+            }
         }
     }
 

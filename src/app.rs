@@ -106,6 +106,7 @@ impl ApplicationHandler<State> for App {
                 ..
             } => state.handle_key(event_loop, code, key_state.is_pressed()),
             WindowEvent::MouseInput {state: element_state, button: button, .. } => {state.handle_mouse_button(button, element_state)},
+            WindowEvent::MouseWheel {delta: delta, phase: phase, ..} => state.handle_scroll(delta, phase),
             _ => {}
         }
     }

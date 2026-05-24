@@ -239,7 +239,7 @@ impl State {
             let point_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Point Render Pipeline layout"),
                 bind_group_layouts: &[Some(&camera_bind_group_layout)],
-                immediate_size: 0,
+                immediate_size: 4,
             });
 
             let point_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -348,11 +348,11 @@ impl State {
         }
     }
 
-    pub fn request_compute(&mut self) {
+    pub fn request_compute(&mut self, n: f32, l: f32, m: f32) {
         println!("STARING COMPUTE");
         let now = std::time::Instant::now();
         let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor { label: Some("Compute Encoder") });
-        //self.queue.write_buffer(&self.compute.buffer_in, 0, bytemuck::cast_slice(&*self.compute.data_in));
+        self.queue.write_buffer(&self.compute.params_buffer, 0, bytemuck::cast_slice(&[n, l, m]));
 
         {
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass Descriptor"), timestamp_writes: None });
@@ -384,14 +384,14 @@ impl State {
             let x_c = x as f32 / 50.0 - 1.0;
             let y_c = y as f32 / 50.0 - 1.0;
             let z_c = z as f32 / 50.0 - 1.0;
-            [Vertex {position: [x_c, y_c, z_c-0.02], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c, y_c-0.02, z_c-0.02], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+            [Vertex {position: [x_c, y_c, z_c-0.005], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c, y_c-0.005, z_c-0.005], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
                 Vertex {position: [x_c, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c, y_c-0.02, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.02, y_c, z_c-0.02], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.02, y_c-0.02, z_c-0.02], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.02, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.02, y_c-0.02, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]}]
+                Vertex {position: [x_c, y_c-0.005, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.005, y_c, z_c-0.005], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.005, y_c-0.005, z_c-0.005], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.005, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.005, y_c-0.005, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]}]
         }).flatten().collect();
 
         if vert.is_empty() {
@@ -503,6 +503,7 @@ impl State {
             // }
 
             // render_pass.set_pipeline(&self.render_pipelines[2]);
+            // render_pass.set_immediates(0, &self.voxel_scale_factor.to_le_bytes());
             // render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             // for obj in self.objects.iter() {
             //     render_pass.set_vertex_buffer(0, obj.vertex_buffer.slice(..));
@@ -523,7 +524,7 @@ impl State {
         match (code, is_pressed) {
             (KeyCode::Escape, true) => event_loop.exit(),
             (KeyCode::Numpad5, true) => self.debug_log(),
-            (KeyCode::Numpad6, true) => self.request_compute(),
+            (KeyCode::Numpad6, true) => self.request_compute(4.0, 3.0, 1.0),
             _ => {}
         }
     }

@@ -37,7 +37,7 @@ fn compute_main(@builtin(global_invocation_id) id: vec3<u32>) {
     let angular = harmonic(m, l, theta);
 
     // a simple copy operation
-    output[id.x+id.y*100+id.z*10000] = u32(normalization * radial * angular > 100.0);
+    output[id.x+id.y*100+id.z*10000] = u32(normalization * radial * angular > 1.0);
 }
 
 fn factorial(num: f32) -> f32 {

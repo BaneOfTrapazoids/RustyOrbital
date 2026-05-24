@@ -289,10 +289,10 @@ impl State {
             pieplines = vec![triangle_pipeline, line_pipeline, point_pipeline];
         }
 
-        let mut objects = vec![read_obj("src/objects/renderercube.obj", &device)];
-        objects.push(objects[0].scale(0.5, &device, Some("Scaled")).translate(-1.0, -0.5, -1.0, &device, Some("Translated")));
+        //let mut objects = vec![read_obj("src/objects/renderercube.obj", &device)];
+        //objects.push(objects[0].scale(0.5, &device, Some("Scaled")).translate(-1.0, -0.5, -1.0, &device, Some("Translated")));
 
-        //let objects = vec![];
+        let objects = vec![];
 
         let depth_stencil = device.create_texture(&TextureDescriptor {
             label: Some("Depth Stencil"),
@@ -412,8 +412,8 @@ impl State {
             i*8+1, i*8+3, i*8+7,
             i*8, i*8+2, i*8+3,
             i*8+4, i*8, i*8+1]).flatten().collect();
-        let x = vec![Object::new(vert, faces, vec![0], &self.device, Some("Computed"))];
-        self.objects = x;
+        let x = Object::new(vert, faces, vec![0], &self.device, Some("Computed"));
+        self.objects.push(x);
         println!("Pre-Processing finished in: {}", now.elapsed().as_millis());
     }
 
@@ -524,7 +524,7 @@ impl State {
         match (code, is_pressed) {
             (KeyCode::Escape, true) => event_loop.exit(),
             (KeyCode::Numpad5, true) => self.debug_log(),
-            (KeyCode::Numpad6, true) => self.request_compute(4.0, 3.0, 1.0),
+            (KeyCode::Numpad6, true) => self.request_compute(2.0, 1.0, 0.0),
             _ => {}
         }
     }

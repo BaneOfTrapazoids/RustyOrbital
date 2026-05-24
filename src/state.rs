@@ -350,6 +350,7 @@ impl State {
 
     pub fn request_compute(&mut self) {
         println!("STARING COMPUTE");
+        let now = std::time::Instant::now();
         let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor { label: Some("Compute Encoder") });
         //self.queue.write_buffer(&self.compute.buffer_in, 0, bytemuck::cast_slice(&*self.compute.data_in));
 
@@ -374,6 +375,8 @@ impl State {
 
         let result: Vec<u32> = self.compute.true_out.get_mapped_range(..).chunks_exact(4).map(|e| u32::from_le_bytes(<[u8; 4]>::try_from(e).unwrap())).collect();
         self.compute.true_out.unmap();
+
+        println!("Computation finished in: {}", now.elapsed().as_millis());
         let vert: Vec<Vertex> = result.iter().enumerate().filter(|e| *e.1 == 1).map(|e| {
             let z = e.0 / 10000;
             let y = (e.0 - 10000 * z) / 100;
@@ -390,6 +393,12 @@ impl State {
                 Vertex {position: [x_c-0.02, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
                 Vertex {position: [x_c-0.02, y_c-0.02, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]}]
         }).flatten().collect();
+
+        if vert.is_empty() {
+            println!("DIDN'T RETURN ANY COMPUTATION");
+            return;
+        }
+
         let faces: Vec<u32> = (0..(vert.len() as u32) / 8).map(|i| [
             i*8+4, i*8+2, i*8,
             i*8+2, i*8+7, i*8+3,
@@ -405,6 +414,7 @@ impl State {
             i*8+4, i*8, i*8+1]).flatten().collect();
         let x = vec![Object::new(vert, faces, vec![0], &self.device, Some("Computed"))];
         self.objects = x;
+        println!("Pre-Processing finished in: {}", now.elapsed().as_millis());
     }
 
     pub fn render(&mut self) -> anyhow::Result<()> {

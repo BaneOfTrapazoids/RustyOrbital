@@ -5,6 +5,7 @@ use crate::orbital_compute::OrbitalCompute;
 use crate::rendering;
 use crate::rendering::{read_obj, Camera, CameraUniform, Object, Projection, Vertex};
 use std::sync::Arc;
+use cgmath::num_traits::float::FloatCore;
 use cgmath::num_traits::real::Real;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::wgt::{CommandEncoderDescriptor, DeviceDescriptor, TextureDescriptor, TextureViewDescriptor};
@@ -12,6 +13,8 @@ use winit::event::{ElementState, MouseButton, MouseScrollDelta};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::KeyCode;
 use winit::window::Window;
+
+const PHASES: [[f32; 3]; 2] = [[1.0, 149.0 / 255.0, 0.0], [0.0, 0.0, 1.0]];
 
 pub struct State {
     surface: wgpu::Surface<'static>,
@@ -293,7 +296,7 @@ impl State {
         }
 
         let mut objects = vec![read_obj("src/objects/renderercube.obj", &device).scale(0.01, &device, Some("renderercububububu"))];
-        //objects.push(objects[0].scale(0.5, &device, Some("Scaled")).translate(-1.0, -0.5, -1.0, &device, Some("Translated")));
+        objects.push(objects[0].scale(1.0, &device, Some("Scaled")));
 
         //let objects = vec![];
 
@@ -379,27 +382,28 @@ impl State {
         let result: Vec<f32> = self.compute.true_out.get_mapped_range(..).chunks_exact(4).map(|e| f32::from_le_bytes(<[u8; 4]>::try_from(e).unwrap())).collect();
         self.compute.true_out.unmap();
         println!("Computation finished in: {}", now.elapsed().as_millis());
-        let max = match result.clone().into_iter().filter(|e| e.is_finite()).reduce(f32::max) {
+        let max = match result.clone().into_iter().filter(|e| e.is_finite()).reduce(|a, b| a.abs().max(b.abs())) {
             Some(a) => {println!("received max {a}"); a},
             None => panic!("No results from shader!!!!!!!!!"),
         };
 
         //println!("Max finished in: {}, with val {max}", now.elapsed().as_millis());
-        let vert: Vec<Vertex> = result.iter().enumerate().filter(|e| *e.1 >= max / 10.0).map(|e| {
+        let vert: Vec<Vertex> = result.iter().enumerate().filter(|e| (*e.1).abs() >= max / 10.0).map(|e| {
             let z = e.0 / 10000;
             let y = (e.0 - 10000 * z) / 100;
             let x = e.0 - 10000* z - 100 * y;
             let x_c = x as f32 / 50.0 - 1.0;
             let y_c = z as f32 / 50.0 - 1.0;
             let z_c = y as f32 / 50.0 - 1.0;
-            [Vertex {position: [x_c, y_c, z_c-0.02], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c, y_c-0.02, z_c-0.02], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c, y_c-0.02, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.02, y_c, z_c-0.02], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.02, y_c-0.02, z_c-0.02], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.02, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.02, y_c-0.02, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]}]
+            let color = PHASES[((e.1.signum() + 1.0) / 2.0) as usize];
+            [Vertex {position: [x_c, y_c, z_c-0.02], color},
+                Vertex {position: [x_c, y_c-0.02, z_c-0.02], color},
+                Vertex {position: [x_c, y_c, z_c], color},
+                Vertex {position: [x_c, y_c-0.02, z_c], color},
+                Vertex {position: [x_c-0.02, y_c, z_c-0.02], color},
+                Vertex {position: [x_c-0.02, y_c-0.02, z_c-0.02], color},
+                Vertex {position: [x_c-0.02, y_c, z_c], color},
+                Vertex {position: [x_c-0.02, y_c-0.02, z_c], color}]
         }).flatten().collect();
 
         let faces: Vec<u32> = (0..(vert.len() as u32) / 8).map(|i| [
@@ -418,6 +422,30 @@ impl State {
         let x = Object::new(vert, faces, vec![0], &self.device, Some("Computed"));
         println!("Pre-Processing finished in: {}", now.elapsed().as_millis());
         return x;
+    }
+
+    pub fn hsv_to_rgb(h: f32, s: f32, v: f32) -> [f32; 3]{
+        let mut r = 0.0;
+        let mut g = 0.0;
+        let mut b = 0.0;
+
+        let i = (h * 6.0).floor();
+        let f = h * 6.0 - i;
+        let p = v * (1.0 - s);
+        let q = v * (1.0 - f * s);
+        let t = v * (1.0 - (1.0 - f) * s);
+
+        match i as i32 % 6 {
+            0 => { r = v; g = t; b = p; },
+            1 => { r = q;g = v;b = p; },
+            2 => { r = p;g = v;b = t; },
+            3 => { r = p;g = q;b = v; },
+            4 => { r = t;g = p;b = v; },
+            5 => { r = v;g = p;b = q; },
+            _ => {},
+        }
+
+        return [r, g, b];
     }
 
     pub fn render(&mut self) -> anyhow::Result<()> {
@@ -536,7 +564,7 @@ impl State {
                 let mut m = self.compute.params[2];
                 println!("Plotting {n}, {l}, {m} state");
                 let obj = self.request_compute(n as f32, l as f32, m as f32);
-                self.objects.push(obj);
+                self.objects[1] = obj;
                 println!("\n\n");
                 m += 1.0;
                 if m > l {
@@ -570,13 +598,13 @@ impl State {
         match delta {
             MouseScrollDelta::LineDelta(_, dy) => {
                 match self.keys.get(&KeyCode::ShiftLeft) {
-                    Some(true) => self.voxel_scale_factor += dy / 100.0,
+                    Some(true) => self.camera.speed += dy / 100.0,
                     _ => {}
                 }
             }
             MouseScrollDelta::PixelDelta(dy) => {
                 match self.keys.get(&KeyCode::ShiftLeft) {
-                    Some(true) => self.voxel_scale_factor += dy.y as f32 / 100.0,
+                    Some(true) => self.camera.speed += dy.y as f32 / 100.0,
                     _ => {}
                 }
             }

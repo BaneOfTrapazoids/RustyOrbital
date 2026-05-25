@@ -38,7 +38,7 @@ fn compute_main(@builtin(global_invocation_id) id: vec3<u32>) {
     let angular = real_harmonic(m, l, theta, phi);
 
     // a simple copy operation
-    output[id.x+id.y*100+id.z*10000] = abs(normalization * radial * angular);
+    output[id.x+id.y*100+id.z*10000] = normalization * radial * angular;
 }
 
 fn factorial(num: f32) -> f32 {
@@ -65,7 +65,7 @@ fn lag(alpha: f32, deg: f32, x: f32) -> f32 {
     for(var k: f32 = 0.0; k <= deg; k += 1.0) {
         polynomial += pow_fix(-1.0, k) * nCr(alpha + deg, deg - k) * pow_fix(x, k) / factorial(k);
     }
-    return polynomial * polynomial;
+    return sign(polynomial) * polynomial * polynomial;
 }
 
 //fn real_harmonic(ord: f32, deg: f32, theta: f32, phi: f32) -> f32 {
@@ -80,12 +80,12 @@ fn lag(alpha: f32, deg: f32, x: f32) -> f32 {
 
 fn real_harmonic(ord: f32, deg: f32, theta: f32, phi: f32) -> f32 {
     if(ord < 0.0) {
-        return 2.0 * (2.0 * deg + 1.0) * factorial(deg + ord) * assoc_leg_sq(-ord, deg, cos(theta)) * sin(-ord * phi)*sin(-ord * phi) / (4 * PI * factorial(deg - ord));
+        return sign(sin(-ord * phi)) * 2.0 * (2.0 * deg + 1.0) * factorial(deg + ord) * assoc_leg_sq(-ord, deg, cos(theta)) * sin(-ord * phi)*sin(-ord * phi) / (4 * PI * factorial(deg - ord));
     } else if(ord == 0.0) {
         //return (2.0 * deg + 1.0) * assoc_leg_sq(0, deg, cos(theta)) / (4 * PI);
         return harmonic(0, deg, theta, phi).x;
     } else {
-        return 2.0 * (2.0 * deg + 1.0) * factorial(deg - ord) * assoc_leg_sq(ord, deg, cos(theta)) * cos(ord * phi)*cos(ord * phi) / (4 * PI * factorial(deg + ord));
+        return sign(cos(ord * phi)) * 2.0 * (2.0 * deg + 1.0) * factorial(deg - ord) * assoc_leg_sq(ord, deg, cos(theta)) * cos(ord * phi)*cos(ord * phi) / (4 * PI * factorial(deg + ord));
     }
 }
 
@@ -120,7 +120,7 @@ fn assoc_leg_sq(ord: f32, deg: f32, x: f32) -> f32 {
     for(var k: f32 = ord; k <= deg; k += 1.0) {
         polynomial += factorial(k) * nCr(deg, k) * nCr((deg + k - 1.0) / 2.0, deg) * pow_fix(abs(x), k - ord) / factorial(k - ord);
     }
-    return exp2(2.0*deg) * pow_fix(1.0 - x*x, ord) * polynomial * polynomial;
+    return sign(polynomial) * exp2(2.0*deg) * pow_fix(1.0 - x*x, ord) * polynomial * polynomial;
 }
 
 //fn assoc_leg_sq(ord: f32, deg: f32, x: f32) -> f32 {

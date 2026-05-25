@@ -133,6 +133,7 @@ pub struct Camera {
     pub yaw: cgmath::Rad<f32>,
     pub pitch: cgmath::Rad<f32>,
     pub rotating: bool,
+    pub speed: f32
 }
 
 impl Camera {
@@ -142,7 +143,8 @@ impl Camera {
             projection: Projection::new(width, height, cgmath::Deg(45.0), 0.1, 100.0),
             yaw: yaw.into(),
             pitch: pitch.into(),
-            rotating: false
+            rotating: false,
+            speed: 1.0
         }
     }
 
@@ -179,12 +181,12 @@ impl Camera {
         let forward = cgmath::Vector3::new(yaw_cos, 0.0, yaw_sin).normalize();
         let right = cgmath::Vector3::new(-yaw_sin, 0.0, yaw_cos).normalize();
         match (code, is_pressed) {
-            (KeyCode::KeyW, true) => self.position += forward * 0.05,
-            (KeyCode::KeyS, true) => self.position += -forward * 0.05,
-            (KeyCode::KeyA, true) => self.position += -right * 0.05,
-            (KeyCode::KeyD, true) => self.position += right * 0.05,
-            (KeyCode::Space, true) => self.position.y += 0.05,
-            (KeyCode::KeyC, true) => self.position.y -= 0.05,
+            (KeyCode::KeyW, true) => self.position += forward * 0.05 * self.speed,
+            (KeyCode::KeyS, true) => self.position += -forward * 0.05 * self.speed,
+            (KeyCode::KeyA, true) => self.position += -right * 0.05 * self.speed,
+            (KeyCode::KeyD, true) => self.position += right * 0.05 * self.speed,
+            (KeyCode::Space, true) => self.position.y += 0.05 * self.speed,
+            (KeyCode::KeyC, true) => self.position.y -= 0.05 * self.speed,
             (_, _) => {}
         }
 

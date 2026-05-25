@@ -11,6 +11,7 @@ pub struct OrbitalCompute {
     pub params_buffer: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
     pub params: Vec<f32>,
+    pub resolution: u32,
 }
 
 impl OrbitalCompute {
@@ -122,6 +123,7 @@ impl OrbitalCompute {
             params_buffer,
             bind_group: compute_bind_group,
             params: vec![1.0, 0.0, 0.0],
+            resolution: 20,
         }
     }
 }

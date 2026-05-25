@@ -598,13 +598,13 @@ impl State {
         match delta {
             MouseScrollDelta::LineDelta(_, dy) => {
                 match self.keys.get(&KeyCode::ShiftLeft) {
-                    Some(true) => self.camera.speed += dy / 100.0,
+                    Some(true) => self.camera.speed += dy / 10.0,
                     _ => {}
                 }
             }
             MouseScrollDelta::PixelDelta(dy) => {
                 match self.keys.get(&KeyCode::ShiftLeft) {
-                    Some(true) => self.camera.speed += dy.y as f32 / 100.0,
+                    Some(true) => self.camera.speed += dy.y as f32 / 10.0,
                     _ => {}
                 }
             }

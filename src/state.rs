@@ -349,7 +349,7 @@ impl State {
         }
     }
 
-    pub fn request_compute(&mut self, n: f32, l: f32, m: f32) {
+    pub fn request_compute(&mut self, n: f32, l: f32, m: f32) -> Object {
         println!("STARING COMPUTE");
         let now = std::time::Instant::now();
         let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor { label: Some("Compute Encoder") });
@@ -388,21 +388,20 @@ impl State {
             let y = (e.0 - 10000 * z) / 100;
             let x = e.0 - 10000* z - 100 * y;
             let x_c = x as f32 / 50.0 - 1.0;
-            let y_c = y as f32 / 50.0 - 1.0;
-            let z_c = z as f32 / 50.0 - 1.0;
-            [Vertex {position: [x_c, y_c, z_c-0.005], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c, y_c-0.005, z_c-0.005], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+            let y_c = z as f32 / 50.0 - 1.0;
+            let z_c = y as f32 / 50.0 - 1.0;
+            [Vertex {position: [x_c, y_c, z_c-0.02], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c, y_c-0.02, z_c-0.02], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
                 Vertex {position: [x_c, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c, y_c-0.005, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.005, y_c, z_c-0.005], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.005, y_c-0.005, z_c-0.005], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.005, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
-                Vertex {position: [x_c-0.005, y_c-0.005, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]}]
+                Vertex {position: [x_c, y_c-0.02, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.02, y_c, z_c-0.02], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.02, y_c-0.02, z_c-0.02], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.02, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
+                Vertex {position: [x_c-0.02, y_c-0.02, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]}]
         }).flatten().collect();
 
         if vert.is_empty() {
-            println!("DIDN'T RETURN ANY COMPUTATION");
-            return;
+            panic!("DIDN'T RETURN ANY COMPUTATION")
         }
 
         let faces: Vec<u32> = (0..(vert.len() as u32) / 8).map(|i| [
@@ -419,8 +418,8 @@ impl State {
             i*8, i*8+2, i*8+3,
             i*8+4, i*8, i*8+1]).flatten().collect();
         let x = Object::new(vert, faces, vec![0], &self.device, Some("Computed"));
-        self.objects.push(x);
         println!("Pre-Processing finished in: {}", now.elapsed().as_millis());
+        return x;
     }
 
     pub fn render(&mut self) -> anyhow::Result<()> {
@@ -530,7 +529,14 @@ impl State {
         match (code, is_pressed) {
             (KeyCode::Escape, true) => event_loop.exit(),
             (KeyCode::Numpad5, true) => self.debug_log(),
-            (KeyCode::Numpad6, true) => self.request_compute(4.0, 3.0, 1.0),
+            (KeyCode::Numpad6, true) => {
+                for n in 1..6 {
+                    for l in 0..n {
+                        let obj = self.request_compute(n as f32, l as f32, l as f32).translate(5.0 * n as f32, 0.0,5.0 * l as f32, &self.device, Some("orbital"));
+                        self.objects.push(obj);
+                    }
+                }
+            },
             _ => {}
         }
     }

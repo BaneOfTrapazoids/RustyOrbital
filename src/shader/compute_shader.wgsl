@@ -52,23 +52,6 @@ fn factorial(num: f32) -> f32 {
     return max(k, 1.0);
 }
 
-//fn lag(alpha: f32, deg: f32, x: f32) -> f32 {
-//    var l_0: f32 = 1;
-//    var l_1: f32 = 1 + alpha - x;
-//    if(deg == 0.0) {
-//        return l_0;
-//    } else if(deg == 1.0) {
-//        return l_1;
-//    }
-//    for(var k = 2.0; k <= deg; k += 1.0) {
-//        let l_n: f32 = ((2*k - 1 + alpha - x) * l_1 - (k - 1 + alpha) * l_0) / k;
-//        l_0 = l_1;
-//        l_1 = l_n;
-//    }
-//
-//    return l_1 * l_1;
-//}
-
 fn lag(alpha: f32, deg: f32, x: f32) -> f32 {
     var polynomial: f32 = 0.0;
     for(var k: f32 = 0.0; k <= deg; k += 1.0) {
@@ -97,12 +80,14 @@ fn pow_fix(a: f32, b: f32) -> f32 {
         return 1.0;
     } else if(a == 0.0) {
         return 0.0;
+    } else if (b == 1.0) {
+        return a;
     }
     let x: f32 = pow(abs(a), b);
-    if(a < 0.0 & ((i32(b) & 1) == 1)) {
+    if(a < 0.0 && ((i32(b) & 1) == 1)) {
         return -x;
     }
-    return x;
+    return abs(x);
 }
 
 
@@ -113,6 +98,14 @@ fn nCr(a: f32, b: f32) -> f32 {
     return factorial(a) / (factorial(b) * factorial(a - b));
 }
 
+fn assoc_leg_sq(ord: f32, deg: f32, x: f32) -> f32 {
+    var polynomial: f32 = 0.0;
+    for(var k: f32 = ord; k <= deg; k += 1.0) {
+        polynomial += factorial(k) * nCr(deg, k) * nCr((deg + k - 1.0) / 2, deg) * pow_fix(abs(x), k - ord) / factorial(k - ord);
+    }
+    return exp2(2.0*deg) * pow_fix(1.0 - x*x, ord) * polynomial * polynomial;
+}
+
 //fn assoc_leg_sq(ord: f32, deg: f32, x: f32) -> f32 {
 //    var polynomial: f32 = 0.0;
 //    for(var k = 0.0; k <= f32(floor(deg / 2.0)); k += 1.0) {
@@ -121,10 +114,19 @@ fn nCr(a: f32, b: f32) -> f32 {
 //    return exp2(2.0*deg) * pow_fix(1.0 - x*x, ord) * polynomial * polynomial;
 //}
 
-fn assoc_leg_sq(ord: f32, deg: f32, x: f32) -> f32 {
-    var polynomial: f32 = 0.0;
-    for(var k: f32 = ord; k <= deg; k += 1.0) {
-        polynomial += factorial(k) * nCr(deg, k) * nCr((deg + k - 1.0) / 2, deg) * pow_fix(x, k - ord) / factorial(k - ord);
-    }
-    return exp2(2.0*deg) * pow_fix(1.0 - x*x, ord) * polynomial * polynomial;
-}
+//fn lag(alpha: f32, deg: f32, x: f32) -> f32 {
+//    var l_0: f32 = 1;
+//    var l_1: f32 = 1 + alpha - x;
+//    if(deg == 0.0) {
+//        return l_0;
+//    } else if(deg == 1.0) {
+//        return l_1;
+//    }
+//    for(var k = 2.0; k <= deg; k += 1.0) {
+//        let l_n: f32 = ((2*k - 1 + alpha - x) * l_1 - (k - 1 + alpha) * l_0) / k;
+//        l_0 = l_1;
+//        l_1 = l_n;
+//    }
+//
+//    return l_1 * l_1;
+//}

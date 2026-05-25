@@ -380,12 +380,12 @@ impl State {
         self.compute.true_out.unmap();
         println!("Computation finished in: {}", now.elapsed().as_millis());
         let max = match result.clone().into_iter().filter(|e| e.is_finite()).reduce(f32::max) {
-            Some(a) => a,
+            Some(a) => {println!("received max {a}"); a},
             None => panic!("No results from shader!!!!!!!!!"),
         };
 
         //println!("Max finished in: {}, with val {max}", now.elapsed().as_millis());
-        let vert: Vec<Vertex> = result.iter().enumerate().filter(|e| *e.1 >= max / 5.0).map(|e| {
+        let vert: Vec<Vertex> = result.iter().enumerate().filter(|e| *e.1 >= max / 10.0).map(|e| {
             let z = e.0 / 10000;
             let y = (e.0 - 10000 * z) / 100;
             let x = e.0 - 10000* z - 100 * y;
@@ -535,7 +535,7 @@ impl State {
                 let mut l = self.compute.params[1];
                 let mut m = self.compute.params[2];
                 println!("Plotting {n}, {l}, {m} state");
-                let obj = self.request_compute(n as f32, l as f32, m as f32).translate(5.0 * n as f32, 5.0 * m as f32,5.0 * l as f32, &self.device, Some("orbital"));
+                let obj = self.request_compute(n as f32, l as f32, m as f32);
                 self.objects.push(obj);
                 println!("\n\n");
                 m += 1.0;

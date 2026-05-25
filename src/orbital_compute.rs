@@ -121,7 +121,7 @@ impl OrbitalCompute {
             true_out: true_out_buffer,
             params_buffer,
             bind_group: compute_bind_group,
-            params: vec![2.0, 1.0, -1.0],
+            params: vec![12.0, 10.0, -7.0],
         }
     }
 }

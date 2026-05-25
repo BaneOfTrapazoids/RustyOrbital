@@ -5,7 +5,7 @@
 const a_0: f32 = 0.00000000005291772228743774064696481;
 const a_0_star: f32 = 0.000000000052946541;
 const PI: f32 = 3.14159265358979323846264338327950288;
-const radii_arr = array<f32, 16>(5, 15, 40, 45, 70, 100, 130, 160, 200, 250, 300, 350, 400, 450, 550, 600);
+const radii_arr = array<f32, 16>(5, 15, 40, 45, 70, 100, 130, 160, 200, 250, 300, 350, 400, 450, 700, 900);
 
 @compute
 @workgroup_size(10, 10, 10)
@@ -48,6 +48,14 @@ fn factorial(num: f32) -> f32 {
     var k = num;
     for(var i: f32 = 2.0; i < num; i += 1.0) {
         k *= i;
+    }
+    return k;
+}
+
+fn factorial_fall(a: f32, b: f32) -> f32 {
+    var k = 1.0;
+    for(var i = 0.0; i < b; i += 1.0) {
+        k *= (a-i);
     }
     return k;
 }
@@ -104,10 +112,7 @@ fn pow_fix(a: f32, b: f32) -> f32 {
 
 
 fn nCr(a: f32, b: f32) -> f32 {
-    if(a < 0.0 || b < 0.0) {
-        return 0.0;
-    }
-    return factorial(a) / (factorial(b) * factorial(a - b));
+    return factorial_fall(a, b) / factorial(b);
 }
 
 fn assoc_leg_sq(ord: f32, deg: f32, x: f32) -> f32 {

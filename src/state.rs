@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::io;
+use std::str::FromStr;
 use crate::orbital_compute::OrbitalCompute;
 use crate::rendering;
 use crate::rendering::{read_obj, Camera, CameraUniform, Object, Projection, Vertex};
@@ -350,10 +352,10 @@ impl State {
     }
 
     pub fn request_compute(&mut self, n: f32, l: f32, m: f32) -> Object {
-        println!("STARING COMPUTE");
         let now = std::time::Instant::now();
         let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor { label: Some("Compute Encoder") });
         self.queue.write_buffer(&self.compute.params_buffer, 0, bytemuck::cast_slice(&[n, l, m]));
+        self.queue.submit([]);
 
         {
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass Descriptor"), timestamp_writes: None });
@@ -382,8 +384,8 @@ impl State {
             None => panic!("No results from shader!!!!!!!!!"),
         };
 
-        println!("Max finished in: {}, with val {max}", now.elapsed().as_millis());
-        let vert: Vec<Vertex> = result.iter().enumerate().filter(|e| *e.1 >= max / 10.0).map(|e| {
+        //println!("Max finished in: {}, with val {max}", now.elapsed().as_millis());
+        let vert: Vec<Vertex> = result.iter().enumerate().filter(|e| *e.1 >= max / 5.0).map(|e| {
             let z = e.0 / 10000;
             let y = (e.0 - 10000 * z) / 100;
             let x = e.0 - 10000* z - 100 * y;
@@ -399,10 +401,6 @@ impl State {
                 Vertex {position: [x_c-0.02, y_c, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]},
                 Vertex {position: [x_c-0.02, y_c-0.02, z_c], color: [x_c + 0.5, y_c + 0.5, z_c + 0.5]}]
         }).flatten().collect();
-
-        if vert.is_empty() {
-            panic!("DIDN'T RETURN ANY COMPUTATION")
-        }
 
         let faces: Vec<u32> = (0..(vert.len() as u32) / 8).map(|i| [
             i*8+4, i*8+2, i*8,
@@ -530,12 +528,28 @@ impl State {
             (KeyCode::Escape, true) => event_loop.exit(),
             (KeyCode::Numpad5, true) => self.debug_log(),
             (KeyCode::Numpad6, true) => {
-                for n in 1..6 {
-                    for l in 0..n {
-                        let obj = self.request_compute(n as f32, l as f32, l as f32).translate(5.0 * n as f32, 0.0,5.0 * l as f32, &self.device, Some("orbital"));
-                        self.objects.push(obj);
-                    }
+                // let mut input_param = String::new();
+                // std::io::stdin().read_line(&mut input_param);
+                // let params: Vec<f32> = input_param.split_ascii_whitespace().map(|e| u32::from_str(e).unwrap() as f32).collect();
+                let mut n = self.compute.params[0];
+                let mut l = self.compute.params[1];
+                let mut m = self.compute.params[2];
+                println!("Plotting {n}, {l}, {m} state");
+                let obj = self.request_compute(n as f32, l as f32, m as f32).translate(5.0 * n as f32, 5.0 * m as f32,5.0 * l as f32, &self.device, Some("orbital"));
+                self.objects.push(obj);
+                println!("\n\n");
+                m += 1.0;
+                if m > l {
+                    l += 1.0;
+                    m = -l;
                 }
+                if l >= n {
+                    n += 1.0;
+                    l = 0.0;
+                    m = 0.0;
+                }
+                self.compute.params = vec![n, l, m];
+
             },
             _ => {}
         }

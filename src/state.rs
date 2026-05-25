@@ -3,6 +3,7 @@ use crate::orbital_compute::OrbitalCompute;
 use crate::rendering;
 use crate::rendering::{read_obj, Camera, CameraUniform, Object, Projection, Vertex};
 use std::sync::Arc;
+use cgmath::num_traits::real::Real;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::wgt::{CommandEncoderDescriptor, DeviceDescriptor, TextureDescriptor, TextureViewDescriptor};
 use winit::event::{ElementState, MouseButton, MouseScrollDelta};
@@ -289,10 +290,10 @@ impl State {
             pieplines = vec![triangle_pipeline, line_pipeline, point_pipeline];
         }
 
-        //let mut objects = vec![read_obj("src/objects/renderercube.obj", &device)];
+        let mut objects = vec![read_obj("src/objects/renderercube.obj", &device).scale(0.01, &device, Some("renderercububububu"))];
         //objects.push(objects[0].scale(0.5, &device, Some("Scaled")).translate(-1.0, -0.5, -1.0, &device, Some("Translated")));
 
-        let objects = vec![];
+        //let objects = vec![];
 
         let depth_stencil = device.create_texture(&TextureDescriptor {
             label: Some("Depth Stencil"),
@@ -373,11 +374,16 @@ impl State {
 
         receiver.try_recv().unwrap().unwrap().unwrap();
 
-        let result: Vec<u32> = self.compute.true_out.get_mapped_range(..).chunks_exact(4).map(|e| u32::from_le_bytes(<[u8; 4]>::try_from(e).unwrap())).collect();
+        let result: Vec<f32> = self.compute.true_out.get_mapped_range(..).chunks_exact(4).map(|e| f32::from_le_bytes(<[u8; 4]>::try_from(e).unwrap())).collect();
         self.compute.true_out.unmap();
-
         println!("Computation finished in: {}", now.elapsed().as_millis());
-        let vert: Vec<Vertex> = result.iter().enumerate().filter(|e| *e.1 == 1).map(|e| {
+        let max = match result.clone().into_iter().filter(|e| e.is_finite()).reduce(f32::max) {
+            Some(a) => a,
+            None => panic!("No results from shader!!!!!!!!!"),
+        };
+
+        println!("Max finished in: {}, with val {max}", now.elapsed().as_millis());
+        let vert: Vec<Vertex> = result.iter().enumerate().filter(|e| *e.1 >= max / 10.0).map(|e| {
             let z = e.0 / 10000;
             let y = (e.0 - 10000 * z) / 100;
             let x = e.0 - 10000* z - 100 * y;
@@ -524,7 +530,7 @@ impl State {
         match (code, is_pressed) {
             (KeyCode::Escape, true) => event_loop.exit(),
             (KeyCode::Numpad5, true) => self.debug_log(),
-            (KeyCode::Numpad6, true) => self.request_compute(2.0, 1.0, 0.0),
+            (KeyCode::Numpad6, true) => self.request_compute(4.0, 3.0, 1.0),
             _ => {}
         }
     }

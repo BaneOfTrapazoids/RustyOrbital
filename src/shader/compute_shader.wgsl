@@ -1,5 +1,5 @@
 @group(0) @binding(0) var<storage, read> input: array<u32>;
-@group(0) @binding(1) var<storage, read_write> output: array<u32>;
+@group(0) @binding(1) var<storage, read_write> output: array<f32>;
 @group(0) @binding(2) var<storage, read> params: array<f32>;
 
 const a_0: f32 = 0.00000000005291772228743774064696481;
@@ -30,19 +30,20 @@ fn compute_main(@builtin(global_invocation_id) id: vec3<u32>) {
     let r = length(vec3<f32>(x, y, z));
     let rho = 2 * r / (n * a_0_star);
     let theta = acos(z / r);
+    let phi = atan2(y, x);
     //let theta = acos(z * k_scale / r);
 
-    let normalization = 4.0 * PI * r * r * a_0 * abs((8.0 / (n * n * n * a_0_star * a_0_star * a_0_star)) * factorial(n-l - 1.0) / (2.0*n * factorial(n+l)));
+    let normalization =  4 * PI * r * r * a_0 * abs((8.0 / (n * n * n * a_0_star * a_0_star * a_0_star)) * factorial(n-l - 1.0) / (2.0*n * factorial(n+l)));
     let radial = exp(-rho) * pow(rho, 2.0*l) * lag(2.0*l+1.0, n-l - 1.0, rho);
-    let angular = harmonic(m, l, theta);
+    let angular = real_harmonic(m, l, theta, phi);
 
     // a simple copy operation
-    output[id.x+id.y*100+id.z*10000] = u32(normalization * radial * angular > 1.0);
+    output[id.x+id.y*100+id.z*10000] = abs(normalization * radial * angular);
 }
 
 fn factorial(num: f32) -> f32 {
-    if(num < 0) {
-        return 1;
+    if(num <= 0.0) {
+        return 1.0;
     }
     var k = num;
     for(var i: f32 = 2.0; i < num; i += 1.0) {
@@ -70,18 +71,29 @@ fn factorial(num: f32) -> f32 {
 
 fn lag(alpha: f32, deg: f32, x: f32) -> f32 {
     var polynomial: f32 = 0.0;
-    for(var k = 0.0; k < alpha + deg; k += 1.0) {
-        polynomial += pow_fix(-1.0, k) / factorial(k - alpha) * nCr(alpha + deg, k) * pow_fix(x, k - alpha);
+    for(var k: f32 = 0.0; k <= deg; k += 1.0) {
+        polynomial += pow_fix(-1.0, k) * nCr(alpha + deg, deg - k) * pow_fix(x, k) / factorial(k);
     }
     return polynomial * polynomial;
 }
 
-fn harmonic(ord: f32, deg: f32, theta: f32) -> f32 {
-    return (2*deg+1) * factorial(deg - ord) / (4 * PI * factorial(deg + ord)) * assoc_leg(ord, deg, cos(theta));
+fn real_harmonic(ord: f32, deg: f32, theta: f32, phi: f32) -> f32 {
+    if(ord < 0) {
+        return 2.0 * harmonic(-ord, deg, theta, phi).y;
+    } else if(ord == 0) {
+        return harmonic(0, deg, theta, phi).x;
+    } else {
+        return 2.0 * harmonic(ord, deg, theta, phi).x;
+    }
+}
+
+fn harmonic(ord: f32, deg: f32, theta: f32, phi: f32) -> vec2<f32> {
+    let x = (pow_fix(-1, ord) * (2*deg+1) * factorial(deg - ord) / (4 * PI * factorial(deg + ord))) * assoc_leg_sq(ord, deg, cos(theta));
+    return vec2<f32>(x * cos(2 * ord * phi), x * sin(2 * ord * phi));
 }
 
 fn pow_fix(a: f32, b: f32) -> f32 {
-    if(b == 0) {
+    if(b == 0.0) {
         return 1.0;
     } else if(a == 0.0) {
         return 0.0;
@@ -96,23 +108,23 @@ fn pow_fix(a: f32, b: f32) -> f32 {
 
 fn nCr(a: f32, b: f32) -> f32 {
     if(a < 0.0 || b < 0.0) {
-        return 0.0;
+        return 1.0;
     }
     return factorial(a) / (factorial(b) * factorial(a - b));
 }
 
-fn assoc_leg(ord: f32, deg: f32, x: f32) -> f32 {
-    var polynomial: f32 = 0.0;
-    for(var k = 0.0; k <= f32(floor(deg / 2.0)); k += 1.0) {
-        polynomial += ((factorial(deg - 2 * k) * pow_fix(-1.0, k) * factorial(2.0 * deg - 2.0 * k)) / (factorial(deg - 2.0 * k - ord) * factorial(k) * factorial(deg - k) * factorial(deg - 2.0 * k))) * pow_fix(x, deg- 2.0 * k - ord);
-    }
-    return exp2(2.0*deg) * abs(pow_fix(1.0 - x*x, ord)) * polynomial * polynomial;
-}
-
-//fn assoc_leg(ord: f32, deg: f32, x: f32) -> f32 {
-//    var polynomial: f32 = 0;
-//    for(var k = ord; k <= deg; k += 1) {
-//        polynomial += factorial(k) / factorial(k - ord) * nCr(deg, k) * nCr((deg + k - 1) / 2, deg) * pow_fix(x, k-ord);
+//fn assoc_leg_sq(ord: f32, deg: f32, x: f32) -> f32 {
+//    var polynomial: f32 = 0.0;
+//    for(var k = 0.0; k <= f32(floor(deg / 2.0)); k += 1.0) {
+//        polynomial += ((factorial(deg - 2 * k) * pow_fix(-1.0, k) * factorial(2.0 * deg - 2.0 * k)) / (factorial(deg - 2.0 * k - ord) * factorial(k) * factorial(deg - k) * factorial(deg - 2.0 * k))) * pow_fix(x, deg- 2.0 * k - ord);
 //    }
-//    return abs(exp2(-2*deg) * pow_fix(1 - x*x, ord) * polynomial * polynomial);
+//    return exp2(2.0*deg) * pow_fix(1.0 - x*x, ord) * polynomial * polynomial;
 //}
+
+fn assoc_leg_sq(ord: f32, deg: f32, x: f32) -> f32 {
+    var polynomial: f32 = 0.0;
+    for(var k: f32 = ord; k <= deg; k += 1.0) {
+        polynomial += factorial(k) * nCr(deg, k) * nCr((deg + k - 1.0) / 2, deg) * pow_fix(x, k - ord) / factorial(k - ord);
+    }
+    return exp2(2.0*deg) * pow_fix(1.0 - x*x, ord) * polynomial * polynomial;
+}
